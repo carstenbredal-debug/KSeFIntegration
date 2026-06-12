@@ -22,3 +22,7 @@ local.settings.json
 ## OS
 .DS_Store
 Thumbs.db
+
+# BC Extension build artifacts
+src/KSeF.BCExtension/.alpackages/
+src/KSeF.BCExtension/output/
