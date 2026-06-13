@@ -177,14 +177,14 @@ public class InvoiceXmlBuilder
             )
         ));
 
-        if (isCreditMemo)
-            fa.Add(new XElement(Ns + "P_15ZK", "0.00"));
-
         fa.Add(new XElement(Ns + "RodzajFaktury", isCreditMemo ? "KOR" : "VAT"));
 
         if (isCreditMemo)
         {
-            // Reason for correction — must come right after RodzajFaktury
+            // P_15ZK — corrected gross total, comes after RodzajFaktury
+            fa.Add(new XElement(Ns + "P_15ZK", "0.00"));
+
+            // Reason for correction
             fa.Add(new XElement(Ns + "PrzyczynaKorekty",
                 !string.IsNullOrWhiteSpace(inv.CorrectionReason) ? inv.CorrectionReason : "Korekta faktury"));
 
