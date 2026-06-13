@@ -50,7 +50,8 @@ table 50200 "KPHG KSeF Setup"
     begin
         if not Get() then begin
             Init();
-            Insert();
+            if not Insert() then
+                Get();
         end;
     end;
 }
