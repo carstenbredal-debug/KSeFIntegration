@@ -149,12 +149,9 @@ public class InvoiceXmlBuilder
 
         if (isCreditMemo)
         {
-            // For correction: P_13_1/P_14_1 show "after correction" net/vat, P_15 shows gross
             fa.Add(new XElement(Ns + "P_13_1", "0.00"));
             fa.Add(new XElement(Ns + "P_14_1", "0.00"));
             fa.Add(new XElement(Ns + "P_15", "0.00"));
-            // P_15ZK — corrected gross total, placed right after P_15
-            fa.Add(new XElement(Ns + "P_15ZK", "0.00"));
         }
         else
         {
@@ -179,6 +176,9 @@ public class InvoiceXmlBuilder
                 new XElement(Ns + "P_PMarzyN", 1)
             )
         ));
+
+        if (isCreditMemo)
+            fa.Add(new XElement(Ns + "P_15ZK", "0.00"));
 
         fa.Add(new XElement(Ns + "RodzajFaktury", isCreditMemo ? "KOR" : "VAT"));
 
