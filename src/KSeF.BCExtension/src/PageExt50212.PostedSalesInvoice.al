@@ -14,8 +14,7 @@ pageextension 50212 "KPHG Posted Sales Inv Ext" extends "Posted Sales Invoice"
                 field("KPHG KSeF Submission DT"; Rec."KPHG KSeF Submission DT") { ApplicationArea = All; }
                 field("KPHG KSeF Acceptance DT"; Rec."KPHG KSeF Acceptance DT") { ApplicationArea = All; }
                 field("KPHG KSeF QR Reference"; Rec."KPHG KSeF QR Reference") { ApplicationArea = All; }
-                field("KPHG KSeF Payload URL"; Rec."KPHG KSeF Payload URL") { ApplicationArea = All; }
-                field("KPHG KSeF Response URL"; Rec."KPHG KSeF Response URL") { ApplicationArea = All; }
+                field("KPHG KSeF Session Ref."; Rec."KPHG KSeF Session Ref.") { ApplicationArea = All; }
                 field("KPHG KSeF Error Message"; Rec."KPHG KSeF Error Message") { ApplicationArea = All; }
             }
         }

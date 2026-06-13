@@ -1,4 +1,6 @@
 using System.Net;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
@@ -60,6 +62,9 @@ public class InvoiceFunctions
             var session = await _ksef.InitSessionAsync(invoice.Seller.NIP);
             _logger.LogInformation("KSeF session started: {Token}", session.SessionToken[..8] + "...");
 
+            // 3. Compute SHA-256 hash of invoice XML for QR verification
+            var xmlHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(xml))).ToLowerInvariant();
+
             // 3. Send invoice
             var sendResult = await _ksef.SendInvoiceAsync(xml, session.SessionToken);
             _logger.LogInformation("Invoice sent, ref: {Ref}", sendResult.ElementReferenceNumber);
@@ -72,7 +77,8 @@ public class InvoiceFunctions
                 Success = true,
                 ElementReferenceNumber = sendResult.ElementReferenceNumber,
                 SessionToken = session.SessionToken,
-                SessionReferenceNumber = session.SessionReferenceNumber
+                SessionReferenceNumber = session.SessionReferenceNumber,
+                QRVerificationUrl = $"{_ksef.BaseUrl.Replace("/v2", "")}/web/verify/{sendResult.ElementReferenceNumber}/{xmlHash}"
             });
         }
         catch (Exception ex)
@@ -115,6 +121,10 @@ public class InvoiceFunctions
 
             await _ksef.TerminateSessionAsync(session.SessionToken);
 
+            var qrUrl = !string.IsNullOrEmpty(status.KSeFReferenceNumber)
+                ? $"{_ksef.BaseUrl.Replace("/v2", "")}/web/verify/{status.KSeFReferenceNumber}"
+                : null;
+
             return await CreateResponse(req, HttpStatusCode.OK, new StatusResult
             {
                 Success = true,
@@ -122,7 +132,8 @@ public class InvoiceFunctions
                 ProcessingDescription = status.ProcessingDescription,
                 Details = status.Details,
                 KSeFReferenceNumber = status.KSeFReferenceNumber,
-                AcquisitionTimestamp = status.AcquisitionTimestamp
+                AcquisitionTimestamp = status.AcquisitionTimestamp,
+                QRVerificationUrl = qrUrl
             });
         }
         catch (Exception ex)

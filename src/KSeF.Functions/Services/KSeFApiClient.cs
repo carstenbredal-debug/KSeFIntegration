@@ -39,7 +39,7 @@ public class KSeFApiClient
         };
     }
 
-    private string BaseUrl => _config["KSeF:BaseUrl"] ?? "https://api-demo.ksef.mf.gov.pl/v2";
+    public string BaseUrl => _config["KSeF:BaseUrl"] ?? "https://api-demo.ksef.mf.gov.pl/v2";
     private string Token => _config["KSeF:Token"] ?? "";
 
     /// <summary>

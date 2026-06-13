@@ -85,6 +85,9 @@ codeunit 50201 "KPHG KSeF Management"
                 SalesInvHeader."KPHG KSeF Acceptance DT" := CurrentDateTime();
             end;
 
+            if TryGetJsonText(JsonResponse, 'qRVerificationUrl', TextValue) then
+                SalesInvHeader."KPHG KSeF QR Reference" := CopyStr(TextValue, 1, 250);
+
             SalesInvHeader.Modify(true);
             Message('Invoice %1 submitted to KSeF successfully.', SalesInvHeader."No.");
         end else begin
@@ -139,6 +142,8 @@ codeunit 50201 "KPHG KSeF Management"
                 SalesInvHeader."KPHG KSeF Status" := SalesInvHeader."KPHG KSeF Status"::Accepted;
                 SalesInvHeader."KPHG KSeF Acceptance DT" := CurrentDateTime();
                 SalesInvHeader."KPHG KSeF Error Message" := '';
+                if TryGetJsonText(JsonResponse, 'qRVerificationUrl', TextValue) then
+                    SalesInvHeader."KPHG KSeF QR Reference" := CopyStr(TextValue, 1, 250);
                 SalesInvHeader.Modify(true);
                 Message('Invoice %1 accepted by KSeF. Number: %2', SalesInvHeader."No.", SalesInvHeader."KPHG KSeF Number");
             end else begin

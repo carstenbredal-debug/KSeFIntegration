@@ -53,6 +53,7 @@ public class SubmitResult
     public string? KSeFReferenceNumber { get; set; }
     public string? SessionToken { get; set; }
     public string? SessionReferenceNumber { get; set; }
+    public string? QRVerificationUrl { get; set; }
 }
 
 /// <summary>
@@ -67,4 +68,5 @@ public class StatusResult
     public List<string>? Details { get; set; }
     public string? KSeFReferenceNumber { get; set; }
     public DateTime? AcquisitionTimestamp { get; set; }
+    public string? QRVerificationUrl { get; set; }
 }
