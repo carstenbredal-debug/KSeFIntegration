@@ -1,4 +1,4 @@
-enum 50100 "KPHG KSeF Status"
+enum 50200 "KPHG KSeF Status"
 {
     Extensible = true;
 

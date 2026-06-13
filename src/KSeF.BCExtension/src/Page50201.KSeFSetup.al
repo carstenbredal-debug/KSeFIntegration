@@ -1,4 +1,4 @@
-page 50101 "KPHG KSeF Setup"
+page 50201 "KPHG KSeF Setup"
 {
     PageType = Card;
     SourceTable = "KPHG KSeF Setup";

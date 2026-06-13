@@ -1,4 +1,4 @@
-table 50100 "KPHG KSeF Setup"
+table 50200 "KPHG KSeF Setup"
 {
     Caption = 'KSeF Setup';
     DataClassification = CustomerContent;

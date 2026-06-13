@@ -1,21 +1,29 @@
-pageextension 50112 "KPHG Posted Sales Inv Ext" extends "Posted Sales Invoice"
+page 50200 "KPHG KSeF Invoices"
 {
+    PageType = List;
+    SourceTable = "Sales Invoice Header";
+    ApplicationArea = All;
+    UsageCategory = Lists;
+    Caption = 'KSeF Invoices';
+    Editable = false;
+
     layout
     {
-        addlast(General)
+        area(Content)
         {
-            group("KPHG KSeF")
+            repeater(General)
             {
-                Caption = 'KSeF';
+                field("No."; Rec."No.") { ApplicationArea = All; }
+                field("Sell-to Customer No."; Rec."Sell-to Customer No.") { ApplicationArea = All; }
+                field("Sell-to Customer Name"; Rec."Sell-to Customer Name") { ApplicationArea = All; }
+                field("Posting Date"; Rec."Posting Date") { ApplicationArea = All; }
+                field("Amount Including VAT"; Rec."Amount Including VAT") { ApplicationArea = All; }
                 field("KPHG KSeF Required"; Rec."KPHG KSeF Required") { ApplicationArea = All; }
                 field("KPHG KSeF Status"; Rec."KPHG KSeF Status") { ApplicationArea = All; }
                 field("KPHG KSeF Number"; Rec."KPHG KSeF Number") { ApplicationArea = All; }
                 field("KPHG KSeF Element Ref."; Rec."KPHG KSeF Element Ref.") { ApplicationArea = All; }
                 field("KPHG KSeF Submission DT"; Rec."KPHG KSeF Submission DT") { ApplicationArea = All; }
                 field("KPHG KSeF Acceptance DT"; Rec."KPHG KSeF Acceptance DT") { ApplicationArea = All; }
-                field("KPHG KSeF QR Reference"; Rec."KPHG KSeF QR Reference") { ApplicationArea = All; }
-                field("KPHG KSeF Payload URL"; Rec."KPHG KSeF Payload URL") { ApplicationArea = All; }
-                field("KPHG KSeF Response URL"; Rec."KPHG KSeF Response URL") { ApplicationArea = All; }
                 field("KPHG KSeF Error Message"; Rec."KPHG KSeF Error Message") { ApplicationArea = All; }
             }
         }
@@ -23,9 +31,9 @@ pageextension 50112 "KPHG Posted Sales Inv Ext" extends "Posted Sales Invoice"
 
     actions
     {
-        addlast(Processing)
+        area(Processing)
         {
-            action("KPHG Send to KSeF")
+            action("Send to KSeF")
             {
                 ApplicationArea = All;
                 Caption = 'Send to KSeF';
@@ -36,12 +44,14 @@ pageextension 50112 "KPHG Posted Sales Inv Ext" extends "Posted Sales Invoice"
                     KSeFManagement: Codeunit "KPHG KSeF Management";
                     SalesInvHeader: Record "Sales Invoice Header";
                 begin
-                    SalesInvHeader.Get(Rec."No.");
-                    KSeFManagement.SendToKSeF(SalesInvHeader);
-                    CurrPage.Update(false);
+                    CurrPage.SetSelectionFilter(SalesInvHeader);
+                    if SalesInvHeader.FindSet() then
+                        repeat
+                            KSeFManagement.SendToKSeF(SalesInvHeader);
+                        until SalesInvHeader.Next() = 0;
                 end;
             }
-            action("KPHG Check KSeF Status")
+            action("Check Status")
             {
                 ApplicationArea = All;
                 Caption = 'Check KSeF Status';
@@ -52,9 +62,11 @@ pageextension 50112 "KPHG Posted Sales Inv Ext" extends "Posted Sales Invoice"
                     KSeFManagement: Codeunit "KPHG KSeF Management";
                     SalesInvHeader: Record "Sales Invoice Header";
                 begin
-                    SalesInvHeader.Get(Rec."No.");
-                    KSeFManagement.CheckStatus(SalesInvHeader);
-                    CurrPage.Update(false);
+                    CurrPage.SetSelectionFilter(SalesInvHeader);
+                    if SalesInvHeader.FindSet() then
+                        repeat
+                            KSeFManagement.CheckStatus(SalesInvHeader);
+                        until SalesInvHeader.Next() = 0;
                 end;
             }
         }

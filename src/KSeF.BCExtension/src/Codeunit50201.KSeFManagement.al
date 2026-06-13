@@ -1,4 +1,4 @@
-codeunit 50101 "KPHG KSeF Management"
+codeunit 50201 "KPHG KSeF Management"
 {
     procedure MarkReady(var SalesInvHeader: Record "Sales Invoice Header")
     begin

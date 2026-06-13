@@ -1,4 +1,4 @@
-enum 50101 "KPHG Line Component"
+enum 50201 "KPHG Line Component"
 {
     Extensible = true;
 

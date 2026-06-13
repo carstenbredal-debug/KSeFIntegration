@@ -1,4 +1,4 @@
-enum 50102 "KPHG GTU Code"
+enum 50202 "KPHG GTU Code"
 {
     Extensible = true;
 

@@ -1,4 +1,4 @@
-permissionset 50100 "KPHG KSeF Admin"
+permissionset 50200 "KPHG KSeF Admin"
 {
     Assignable = true;
     Caption = 'KSeF Administration';

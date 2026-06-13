@@ -1,4 +1,4 @@
-pageextension 50113 "KPHG Posted Sales Inv Sub Ext" extends "Posted Sales Invoice Subform"
+pageextension 50213 "KPHG Posted Sales Inv Sub Ext" extends "Posted Sales Invoice Subform"
 {
     layout
     {

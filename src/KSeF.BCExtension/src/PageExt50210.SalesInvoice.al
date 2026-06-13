@@ -1,4 +1,4 @@
-pageextension 50110 "KPHG Sales Invoice Ext" extends "Sales Invoice"
+pageextension 50210 "KPHG Sales Invoice Ext" extends "Sales Invoice"
 {
     layout
     {

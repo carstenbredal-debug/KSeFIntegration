@@ -1,4 +1,4 @@
-pageextension 50114 "KPHG Posted Sales CrMemo Ext" extends "Posted Sales Credit Memo"
+pageextension 50214 "KPHG Posted Sales CrMemo Ext" extends "Posted Sales Credit Memo"
 {
     layout
     {

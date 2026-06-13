@@ -1,4 +1,4 @@
-pageextension 50115 "KPHG Posted CrMemo Sub Ext" extends "Posted Sales Cr. Memo Subform"
+pageextension 50215 "KPHG Posted CrMemo Sub Ext" extends "Posted Sales Cr. Memo Subform"
 {
     layout
     {
