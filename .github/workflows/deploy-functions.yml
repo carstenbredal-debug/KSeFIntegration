@@ -1,0 +1,43 @@
+name: Deploy KSeF Functions
+
+on:
+  push:
+    branches:
+      - dev
+    paths:
+      - 'src/KSeF.Functions/**'
+      - '.github/workflows/deploy-functions.yml'
+
+env:
+  AZURE_FUNCTIONAPP_PACKAGE_PATH: 'src/KSeF.Functions'
+  AZURE_FUNCTIONAPP_NAME: 'ksefintegration-ete8bjh0adfbdkcs'
+  DOTNET_VERSION: '8.0'
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    name: Build and Deploy KSeF Functions
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET ${{ env.DOTNET_VERSION }}
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore dependencies
+        run: dotnet restore ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}
+
+      - name: Build
+        run: dotnet build ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }} --configuration Release --no-restore
+
+      - name: Publish
+        run: dotnet publish ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }} --configuration Release --output ./output --no-build
+
+      - name: Deploy to Azure Functions
+        uses: Azure/functions-action@v1
+        with:
+          app-name: ${{ env.AZURE_FUNCTIONAPP_NAME }}
+          package: ./output
+          publish-profile: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}
