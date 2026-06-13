@@ -27,6 +27,7 @@ public class KSeFInvoiceStatus
     public string ElementReferenceNumber { get; set; } = "";
     public int ProcessingCode { get; set; }
     public string? ProcessingDescription { get; set; }
+    public List<string>? Details { get; set; }
     public string? KSeFReferenceNumber { get; set; }
     public DateTime? AcquisitionTimestamp { get; set; }
 }
@@ -63,6 +64,7 @@ public class StatusResult
     public string? Error { get; set; }
     public int ProcessingCode { get; set; }
     public string? ProcessingDescription { get; set; }
+    public List<string>? Details { get; set; }
     public string? KSeFReferenceNumber { get; set; }
     public DateTime? AcquisitionTimestamp { get; set; }
 }

@@ -120,6 +120,7 @@ public class InvoiceFunctions
                 Success = true,
                 ProcessingCode = status.ProcessingCode,
                 ProcessingDescription = status.ProcessingDescription,
+                Details = status.Details,
                 KSeFReferenceNumber = status.KSeFReferenceNumber,
                 AcquisitionTimestamp = status.AcquisitionTimestamp
             });

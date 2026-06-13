@@ -357,10 +357,17 @@ public class KSeFApiClient
 
         var statusCode = 0;
         string? statusDesc = null;
+        List<string>? details = null;
         if (root.TryGetProperty("status", out var statusObj))
         {
             statusCode = statusObj.TryGetProperty("code", out var sc) ? sc.GetInt32() : 0;
             statusDesc = statusObj.TryGetProperty("description", out var sd) ? sd.GetString() : null;
+            if (statusObj.TryGetProperty("details", out var detailsArr) && detailsArr.ValueKind == JsonValueKind.Array)
+            {
+                details = new List<string>();
+                foreach (var d in detailsArr.EnumerateArray())
+                    details.Add(d.GetString() ?? "");
+            }
         }
 
         return new KSeFInvoiceStatus
@@ -368,6 +375,7 @@ public class KSeFApiClient
             ElementReferenceNumber = invoiceReferenceNumber,
             ProcessingCode = statusCode,
             ProcessingDescription = statusDesc,
+            Details = details,
             KSeFReferenceNumber = root.TryGetProperty("ksefNumber", out var kn) ? kn.GetString() : null,
             AcquisitionTimestamp = root.TryGetProperty("acquisitionTimestamp", out var at) ? at.GetDateTime() : null
         };
