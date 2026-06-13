@@ -107,19 +107,22 @@ public class InvoiceXmlBuilder
                 new XElement(Ns + "P_18A", 2),
                 new XElement(Ns + "Zwolnienie",
                     new XElement(Ns + "P_19N", 1)
+                ),
+                new XElement(Ns + "NoweSrodkiTransportu",
+                    new XElement(Ns + "P_22N", 1)
+                ),
+                new XElement(Ns + "P_23", 2),
+                new XElement(Ns + "PMarzy",
+                    new XElement(Ns + "P_PMarzyN", 1)
                 )
-            )
+            ),
+            new XElement(Ns + "RodzajFaktury", "VAT")
         );
 
-        // Invoice lines (FaWiersze)
-        var wiersze = new XElement(Ns + "FaWiersze",
-            new XElement(Ns + "LiczbaWierszyFaktur", inv.Lines.Count),
-            new XElement(Ns + "WartoscWierszyFaktur1", inv.Lines.Sum(l => l.NetAmount).ToString("F2", CultureInfo.InvariantCulture))
-        );
-
+        // Invoice lines — individual FaWiersz elements directly inside Fa
         foreach (var line in inv.Lines)
         {
-            wiersze.Add(new XElement(Ns + "FaWiersz",
+            fa.Add(new XElement(Ns + "FaWiersz",
                 new XElement(Ns + "NrWierszaFa", line.LineNumber),
                 new XElement(Ns + "P_7", line.Description),
                 new XElement(Ns + "P_8A", line.UnitOfMeasure),
@@ -129,8 +132,6 @@ public class InvoiceXmlBuilder
                 new XElement(Ns + "P_12", FormatVatRate(line.VatRate))
             ));
         }
-
-        fa.Add(wiersze);
 
         // Payment info
         if (inv.PaymentDueDate.HasValue)

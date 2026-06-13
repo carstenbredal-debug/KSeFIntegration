@@ -71,7 +71,8 @@ public class InvoiceFunctions
             {
                 Success = true,
                 ElementReferenceNumber = sendResult.ElementReferenceNumber,
-                SessionToken = session.SessionToken
+                SessionToken = session.SessionToken,
+                SessionReferenceNumber = session.SessionReferenceNumber
             });
         }
         catch (Exception ex)
@@ -84,7 +85,7 @@ public class InvoiceFunctions
 
     /// <summary>
     /// Check the status of a previously submitted invoice.
-    /// GET /api/invoice/status/{elementReferenceNumber}?nip={sellerNip}
+    /// GET /api/invoice/status/{elementReferenceNumber}?nip={sellerNip}&amp;sessionRef={sessionReferenceNumber}
     /// Returns: StatusResult with processing code and KSeF reference number
     /// </summary>
     [Function("GetInvoiceStatus")]
@@ -101,10 +102,16 @@ public class InvoiceFunctions
                 return await CreateResponse(req, HttpStatusCode.BadRequest,
                     new StatusResult { Success = false, Error = "Missing 'nip' query parameter" });
 
-            // Init session to check status
+            var sessionRef = req.Query["sessionRef"];
+            if (string.IsNullOrEmpty(sessionRef))
+                return await CreateResponse(req, HttpStatusCode.BadRequest,
+                    new StatusResult { Success = false, Error = "Missing 'sessionRef' query parameter" });
+
+            // Authenticate to get access token (no need to open a new session)
             var session = await _ksef.InitSessionAsync(nip);
 
-            var status = await _ksef.GetInvoiceStatusAsync(elementReferenceNumber, session.SessionToken);
+            // Query invoice status from the original session
+            var status = await _ksef.GetInvoiceStatusBySessionAsync(sessionRef, elementReferenceNumber, session.SessionToken);
 
             await _ksef.TerminateSessionAsync(session.SessionToken);
 

@@ -248,6 +248,7 @@ public class KSeFApiClient
         return new KSeFSessionResponse
         {
             SessionToken = _accessToken,
+            SessionReferenceNumber = _sessionReferenceNumber,
             Timestamp = DateTime.UtcNow
         };
     }
@@ -326,20 +327,21 @@ public class KSeFApiClient
     }
 
     /// <summary>
-    /// Check the status of a submitted invoice via session documents.
+    /// Check the status of a submitted invoice using the original session reference.
+    /// Uses GET /sessions/{sessionRef}/invoices/{invoiceRef} endpoint.
     /// </summary>
-    public async Task<KSeFInvoiceStatus> GetInvoiceStatusAsync(string elementReferenceNumber, string? sessionToken = null)
+    public async Task<KSeFInvoiceStatus> GetInvoiceStatusBySessionAsync(
+        string sessionReferenceNumber, string invoiceReferenceNumber, string? sessionToken = null)
     {
         var token = sessionToken ?? _accessToken
             ?? throw new InvalidOperationException("No active KSeF session.");
-        var sessionRef = _sessionReferenceNumber
-            ?? throw new InvalidOperationException("No active KSeF session reference.");
 
         var request = new HttpRequestMessage(HttpMethod.Get,
-            $"{BaseUrl}/sessions/online/{sessionRef}/invoices/{elementReferenceNumber}/status");
+            $"{BaseUrl}/sessions/{sessionReferenceNumber}/invoices/{invoiceReferenceNumber}");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-        _logger.LogInformation("Checking KSeF invoice status for {Ref}", elementReferenceNumber);
+        _logger.LogInformation("Checking KSeF invoice status for {Ref} in session {Session}",
+            invoiceReferenceNumber, sessionReferenceNumber);
 
         var response = await _http.SendAsync(request);
         var responseBody = await response.Content.ReadAsStringAsync();
@@ -347,18 +349,26 @@ public class KSeFApiClient
         if (!response.IsSuccessStatusCode)
         {
             _logger.LogError("KSeF status check failed: {Status} {Body}", response.StatusCode, responseBody);
-            throw new Exception($"KSeF status check failed: {response.StatusCode} - {responseBody}");
+            throw new Exception($"KSeF status check failed: {response.StatusCode} - {TruncateForLog(responseBody)}");
         }
 
         using var doc = JsonDocument.Parse(responseBody);
         var root = doc.RootElement;
 
+        var statusCode = 0;
+        string? statusDesc = null;
+        if (root.TryGetProperty("status", out var statusObj))
+        {
+            statusCode = statusObj.TryGetProperty("code", out var sc) ? sc.GetInt32() : 0;
+            statusDesc = statusObj.TryGetProperty("description", out var sd) ? sd.GetString() : null;
+        }
+
         return new KSeFInvoiceStatus
         {
-            ElementReferenceNumber = elementReferenceNumber,
-            ProcessingCode = root.TryGetProperty("processingCode", out var pc) ? pc.GetInt32() : 0,
-            ProcessingDescription = root.TryGetProperty("processingDescription", out var pd) ? pd.GetString() : null,
-            KSeFReferenceNumber = root.TryGetProperty("ksefReferenceNumber", out var kr) ? kr.GetString() : null,
+            ElementReferenceNumber = invoiceReferenceNumber,
+            ProcessingCode = statusCode,
+            ProcessingDescription = statusDesc,
+            KSeFReferenceNumber = root.TryGetProperty("ksefNumber", out var kn) ? kn.GetString() : null,
             AcquisitionTimestamp = root.TryGetProperty("acquisitionTimestamp", out var at) ? at.GetDateTime() : null
         };
     }

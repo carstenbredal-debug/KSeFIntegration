@@ -72,6 +72,9 @@ codeunit 50201 "KPHG KSeF Management"
             if JsonResponse.Get('elementReferenceNumber', JsonToken) then
                 SalesInvHeader."KPHG KSeF Element Ref." := CopyStr(JsonToken.AsValue().AsText(), 1, 100);
 
+            if JsonResponse.Get('sessionReferenceNumber', JsonToken) then
+                SalesInvHeader."KPHG KSeF Session Ref." := CopyStr(JsonToken.AsValue().AsText(), 1, 100);
+
             if JsonResponse.Get('ksefReferenceNumber', JsonToken) then begin
                 SalesInvHeader."KPHG KSeF Number" := CopyStr(JsonToken.AsValue().AsText(), 1, 100);
                 SalesInvHeader."KPHG KSeF Status" := SalesInvHeader."KPHG KSeF Status"::Accepted;
@@ -110,7 +113,8 @@ codeunit 50201 "KPHG KSeF Management"
             Error('Azure Function URL is not configured.');
 
         Url := Setup."Azure Function URL" + '/invoice/status/' + SalesInvHeader."KPHG KSeF Element Ref."
-            + '?nip=' + Setup."Company NIP";
+            + '?nip=' + Setup."Company NIP"
+            + '&sessionRef=' + SalesInvHeader."KPHG KSeF Session Ref.";
 
         Client.DefaultRequestHeaders().Add('x-functions-key', Setup."Azure Function Key");
         Success := Client.Get(Url, ResponseMessage);

@@ -6,6 +6,7 @@ namespace KSeF.Functions.Models;
 public class KSeFSessionResponse
 {
     public string SessionToken { get; set; } = "";
+    public string SessionReferenceNumber { get; set; } = "";
     public DateTime? Timestamp { get; set; }
 }
 
@@ -50,6 +51,7 @@ public class SubmitResult
     public string? ElementReferenceNumber { get; set; }
     public string? KSeFReferenceNumber { get; set; }
     public string? SessionToken { get; set; }
+    public string? SessionReferenceNumber { get; set; }
 }
 
 /// <summary>
