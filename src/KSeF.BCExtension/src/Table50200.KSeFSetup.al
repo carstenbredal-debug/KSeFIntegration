@@ -28,10 +28,6 @@ table 50200 "KPHG KSeF Setup"
         {
             Caption = 'Company NIP';
         }
-        field(40; "Auto Send on Post"; Boolean)
-        {
-            Caption = 'Auto Send to KSeF on Post';
-        }
         field(50; "Default KSeF Required"; Boolean)
         {
             Caption = 'Default KSeF Required';

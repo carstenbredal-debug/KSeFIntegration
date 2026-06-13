@@ -34,15 +34,4 @@ codeunit 50200 "KPHG Posting Subscribers"
         SalesInvLine."KPHG PKWiU" := SalesLine."KPHG PKWiU";
         SalesInvLine.Modify();
     end;
-
-    [EventSubscriber(ObjectType::Codeunit, Codeunit::"Sales-Post", 'OnAfterSalesInvHeaderInsert', '', false, false)]
-    local procedure AutoSendToKSeF(var SalesInvHeader: Record "Sales Invoice Header"; SalesHeader: Record "Sales Header")
-    var
-        Setup: Record "KPHG KSeF Setup";
-        KSeFMgmt: Codeunit "KPHG KSeF Management";
-    begin
-        Setup.GetSetup();
-        if Setup."Auto Send on Post" and SalesInvHeader."KPHG KSeF Required" then
-            KSeFMgmt.SendToKSeF(SalesInvHeader);
-    end;
 }

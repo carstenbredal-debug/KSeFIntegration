@@ -31,11 +31,6 @@ page 50201 "KPHG KSeF Setup"
                     ApplicationArea = All;
                     ToolTip = 'If enabled, new sales invoices will have KSeF Required set by default.';
                 }
-                field("Auto Send on Post"; Rec."Auto Send on Post")
-                {
-                    ApplicationArea = All;
-                    ToolTip = 'If enabled, invoices will be automatically sent to KSeF after posting.';
-                }
             }
             group(AzureFunction)
             {
