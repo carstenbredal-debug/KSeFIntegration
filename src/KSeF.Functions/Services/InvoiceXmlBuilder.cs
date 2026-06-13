@@ -181,9 +181,6 @@ public class InvoiceXmlBuilder
 
         if (isCreditMemo)
         {
-            // P_15ZK — corrected gross total, comes after RodzajFaktury
-            fa.Add(new XElement(Ns + "P_15ZK", "0.00"));
-
             // Reason for correction
             fa.Add(new XElement(Ns + "PrzyczynaKorekty",
                 !string.IsNullOrWhiteSpace(inv.CorrectionReason) ? inv.CorrectionReason : "Korekta faktury"));
@@ -200,8 +197,18 @@ public class InvoiceXmlBuilder
             if (!string.IsNullOrWhiteSpace(inv.OriginalInvoiceNumber))
                 daneFaKorygowanej.Add(new XElement(Ns + "NrFaKorygowanej", inv.OriginalInvoiceNumber));
             if (!string.IsNullOrWhiteSpace(inv.OriginalInvoiceKSeFNumber))
-                daneFaKorygowanej.Add(new XElement(Ns + "NrKSeF", inv.OriginalInvoiceKSeFNumber));
+            {
+                daneFaKorygowanej.Add(new XElement(Ns + "NrKSeF", 1));
+                daneFaKorygowanej.Add(new XElement(Ns + "NrKSeFFaKorygowanej", inv.OriginalInvoiceKSeFNumber));
+            }
+            else
+            {
+                daneFaKorygowanej.Add(new XElement(Ns + "NrKSeFN", 1));
+            }
             fa.Add(daneFaKorygowanej);
+
+            // P_15ZK — corrected gross total (after DaneFaKorygowanej)
+            fa.Add(new XElement(Ns + "P_15ZK", "0.00"));
         }
 
         // Invoice lines
