@@ -10,7 +10,7 @@ on:
 
 env:
   AZURE_FUNCTIONAPP_PACKAGE_PATH: 'src/KSeF.Functions'
-  AZURE_FUNCTIONAPP_NAME: 'ksefintegration-ete8bjh0adfbdkcs'
+  AZURE_FUNCTIONAPP_NAME: 'KSEFIntegration'
   DOTNET_VERSION: '8.0'
 
 jobs:
