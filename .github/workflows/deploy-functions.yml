@@ -52,9 +52,7 @@ jobs:
 
       - name: Deploy to Azure Functions
         run: |
-          az functionapp deploy \
+          az functionapp deployment source config-zip \
             --name ${{ env.AZURE_FUNCTIONAPP_NAME }} \
             --resource-group Auctionsystemazure_group \
-            --src-path ${{ github.workspace }}/deploy.zip \
-            --type zip \
-            --clean true
+            --src ${{ github.workspace }}/deploy.zip
