@@ -11,6 +11,7 @@ namespace KSeF.Functions.Functions;
 public class JpkFunctions
 {
     private readonly JpkV7MBuilder _jpkBuilder;
+    private readonly JpkValidator _jpkValidator;
     private readonly ILogger<JpkFunctions> _logger;
 
     private static readonly JsonSerializerOptions JsonOpts = new()
@@ -19,9 +20,10 @@ public class JpkFunctions
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
 
-    public JpkFunctions(JpkV7MBuilder jpkBuilder, ILogger<JpkFunctions> logger)
+    public JpkFunctions(JpkV7MBuilder jpkBuilder, JpkValidator jpkValidator, ILogger<JpkFunctions> logger)
     {
         _jpkBuilder = jpkBuilder;
+        _jpkValidator = jpkValidator;
         _logger = logger;
     }
 
@@ -61,6 +63,10 @@ public class JpkFunctions
             _logger.LogInformation("JPK_V7M generated: {SalesCount} sales records, tax due: {TaxDue}",
                 salesCount, taxDue);
 
+            var validation = _jpkValidator.Validate(xml);
+            _logger.LogInformation("JPK_V7M validation: {IsValid}, errors: {ErrorCount}",
+                validation.IsValid, validation.Errors.Count);
+
             return await WriteJson(req, HttpStatusCode.OK, new JpkV7MResponse
             {
                 Success = true,
@@ -69,7 +75,9 @@ public class JpkFunctions
                 SalesRecordCount = salesCount,
                 PurchaseRecordCount = 0,
                 TaxDue = taxDue,
-                TaxDeductible = 0
+                TaxDeductible = 0,
+                SchemaValid = validation.IsValid,
+                ValidationErrors = validation.Errors
             });
         }
         catch (Exception ex)

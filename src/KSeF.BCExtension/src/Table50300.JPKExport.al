@@ -84,6 +84,14 @@ table 50300 "KPHG JPK Export"
         {
             Caption = 'XML Content';
         }
+        field(130; "Schema Valid"; Boolean)
+        {
+            Caption = 'Schema Valid';
+        }
+        field(140; "Validation Errors"; Text[2048])
+        {
+            Caption = 'Validation Errors';
+        }
     }
 
     keys

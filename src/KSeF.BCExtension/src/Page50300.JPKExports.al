@@ -22,6 +22,7 @@ page 50300 "KPHG JPK Exports"
                 field(Status; Rec.Status) { ApplicationArea = All; }
                 field("No. of Sales Records"; Rec."No. of Sales Records") { ApplicationArea = All; }
                 field("Tax Due (Output)"; Rec."Tax Due (Output)") { ApplicationArea = All; }
+                field("Schema Valid"; Rec."Schema Valid") { ApplicationArea = All; }
                 field("Generated DateTime"; Rec."Generated DateTime") { ApplicationArea = All; }
                 field("Created By"; Rec."Created By") { ApplicationArea = All; }
                 field("Error Message"; Rec."Error Message") { ApplicationArea = All; }

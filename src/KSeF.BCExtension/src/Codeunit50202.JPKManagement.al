@@ -41,6 +41,10 @@ codeunit 50202 "KPHG JPK Management"
         Base64Convert: Codeunit "Base64 Convert";
         XmlContent: Text;
         Success: Boolean;
+        ValidationErrors: JsonArray;
+        ValidationToken: JsonToken;
+        ValidationErrorsText: Text;
+        i: Integer;
     begin
         if JPKExport.Year = 0 then
             Error('Please specify the year.');
@@ -98,12 +102,33 @@ codeunit 50202 "KPHG JPK Management"
             if TryGetJsonDec(JsonResponse, 'taxDue', JPKExport."Tax Due (Output)") then;
             if TryGetJsonDec(JsonResponse, 'taxDeductible', JPKExport."Tax Deductible (Input)") then;
 
+            if TryGetJsonText(JsonResponse, 'schemaValid', TextValue) then
+                JPKExport."Schema Valid" := (TextValue = 'true');
+
+            JPKExport."Validation Errors" := '';
+            if TryGetJsonArray(JsonResponse, 'validationErrors', ValidationErrors) then begin
+                ValidationErrorsText := '';
+                for i := 0 to ValidationErrors.Count() - 1 do begin
+                    ValidationErrors.Get(i, ValidationToken);
+                    ValidationErrorsText += ValidationToken.AsValue().AsText();
+                    if i < ValidationErrors.Count() - 1 then
+                        ValidationErrorsText += '; ';
+                end;
+                JPKExport."Validation Errors" := CopyStr(ValidationErrorsText, 1, 2048);
+            end;
+
             JPKExport.Status := JPKExport.Status::Generated;
             JPKExport."Generated DateTime" := CurrentDateTime();
             JPKExport."Error Message" := '';
             JPKExport.Modify(true);
-            Message('JPK_V7M generated successfully for %1/%2. Sales records: %3',
-                JPKExport.Month, JPKExport.Year, JPKExport."No. of Sales Records");
+
+            if JPKExport."Schema Valid" then
+                Message('JPK_V7M generated and validated successfully for %1/%2.\Sales records: %3\Schema: Valid',
+                    JPKExport.Month, JPKExport.Year, JPKExport."No. of Sales Records")
+            else
+                Message('JPK_V7M generated for %1/%2.\Sales records: %3\Schema: INVALID — %4',
+                    JPKExport.Month, JPKExport.Year, JPKExport."No. of Sales Records",
+                    JPKExport."Validation Errors");
         end else begin
             JPKExport.Status := JPKExport.Status::Error;
             if TryGetJsonText(JsonResponse, 'error', TextValue) then
@@ -349,5 +374,14 @@ codeunit 50202 "KPHG JPK Management"
     begin
         JsonObj.Get(PropertyName, JsonToken);
         Result := JsonToken.AsValue().AsDecimal();
+    end;
+
+    [TryFunction]
+    local procedure TryGetJsonArray(JsonObj: JsonObject; PropertyName: Text; var Result: JsonArray)
+    var
+        JsonToken: JsonToken;
+    begin
+        JsonObj.Get(PropertyName, JsonToken);
+        Result := JsonToken.AsArray();
     end;
 }

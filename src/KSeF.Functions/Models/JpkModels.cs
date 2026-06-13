@@ -45,4 +45,6 @@ public class JpkV7MResponse
     public int PurchaseRecordCount { get; set; }
     public decimal TaxDue { get; set; }
     public decimal TaxDeductible { get; set; }
+    public bool SchemaValid { get; set; }
+    public List<string> ValidationErrors { get; set; } = new();
 }

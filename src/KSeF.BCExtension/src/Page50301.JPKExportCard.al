@@ -28,6 +28,12 @@ page 50301 "KPHG JPK Export Card"
                 field("Tax Due (Output)"; Rec."Tax Due (Output)") { ApplicationArea = All; Editable = false; }
                 field("Tax Deductible (Input)"; Rec."Tax Deductible (Input)") { ApplicationArea = All; Editable = false; }
             }
+            group(Validation)
+            {
+                Caption = 'Schema Validation';
+                field("Schema Valid"; Rec."Schema Valid") { ApplicationArea = All; Editable = false; }
+                field("Validation Errors"; Rec."Validation Errors") { ApplicationArea = All; Editable = false; MultiLine = true; }
+            }
             group(Info)
             {
                 Caption = 'Information';
