@@ -48,10 +48,10 @@ table 50200 "KPHG KSeF Setup"
 
     procedure GetSetup()
     begin
-        if not Get() then begin
+        if not Get('SETUP') then begin
             Init();
-            if not Insert() then
-                Get();
+            "Primary Key" := 'SETUP';
+            Insert();
         end;
     end;
 }
