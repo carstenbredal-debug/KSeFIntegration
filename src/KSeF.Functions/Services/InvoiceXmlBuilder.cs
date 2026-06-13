@@ -84,14 +84,44 @@ public class InvoiceXmlBuilder
         );
     }
 
+    private static readonly HashSet<string> EuCountryCodes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "AT", "BE", "BG", "HR", "CY", "CZ", "DK", "EE", "FI", "FR",
+        "DE", "GR", "HU", "IE", "IT", "LV", "LT", "LU", "MT", "NL",
+        "PT", "RO", "SK", "SI", "ES", "SE"
+    };
+
     private XElement BuildPodmiot2(BuyerData buyer)
     {
-        var countryCode = string.IsNullOrWhiteSpace(buyer.CountryCode) ? "PL" : buyer.CountryCode;
+        var countryCode = string.IsNullOrWhiteSpace(buyer.CountryCode) ? "PL" : buyer.CountryCode.Trim().ToUpperInvariant();
+        var isPolish = countryCode == "PL";
+        var isEu = !isPolish && EuCountryCodes.Contains(countryCode);
+        var vatNumber = buyer.NIP?.Trim() ?? "";
+
+        var identyfikacyjne = new XElement(Ns + "DaneIdentyfikacyjne");
+
+        if (isPolish)
+        {
+            identyfikacyjne.Add(new XElement(Ns + "NIP", CleanNip(vatNumber)));
+        }
+        else if (isEu && !string.IsNullOrWhiteSpace(vatNumber))
+        {
+            // Strip country prefix if present (e.g., "DK12345678" -> "12345678")
+            var cleanVat = vatNumber;
+            if (cleanVat.Length > 2 && char.IsLetter(cleanVat[0]) && char.IsLetter(cleanVat[1]))
+                cleanVat = cleanVat[2..];
+            identyfikacyjne.Add(new XElement(Ns + "KodUE", countryCode));
+            identyfikacyjne.Add(new XElement(Ns + "NrVatUE", cleanVat));
+        }
+        else
+        {
+            identyfikacyjne.Add(new XElement(Ns + "BrakID", 1));
+        }
+
+        identyfikacyjne.Add(new XElement(Ns + "Nazwa", buyer.Name));
+
         return new XElement(Ns + "Podmiot2",
-            new XElement(Ns + "DaneIdentyfikacyjne",
-                new XElement(Ns + "NIP", CleanNip(buyer.NIP)),
-                new XElement(Ns + "Nazwa", buyer.Name)
-            ),
+            identyfikacyjne,
             new XElement(Ns + "Adres",
                 new XElement(Ns + "KodKraju", countryCode),
                 new XElement(Ns + "AdresL1", FormatAddress(buyer.Street, buyer.BuildingNumber, buyer.ApartmentNumber)),
