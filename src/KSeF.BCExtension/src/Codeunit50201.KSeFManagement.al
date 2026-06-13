@@ -23,6 +23,7 @@ codeunit 50201 "KPHG KSeF Management"
         ResponseMessage: HttpResponseMessage;
         RequestBody: Text;
         ResponseText: Text;
+        TextValue: Text;
         JsonResponse: JsonObject;
         JsonToken: JsonToken;
         Success: Boolean;
@@ -64,32 +65,32 @@ codeunit 50201 "KPHG KSeF Management"
         ResponseMessage.Content().ReadAs(ResponseText);
         JsonResponse.ReadFrom(ResponseText);
 
-        if JsonResponse.Get('success', JsonToken) and JsonToken.AsValue().AsBoolean() then begin
+        if not TryGetJsonText(JsonResponse, 'success', TextValue) then
+            TextValue := '';
+
+        if TextValue = 'true' then begin
             SalesInvHeader."KPHG KSeF Status" := SalesInvHeader."KPHG KSeF Status"::Sent;
             SalesInvHeader."KPHG KSeF Submission DT" := CurrentDateTime();
             SalesInvHeader."KPHG KSeF Error Message" := '';
 
-            if JsonResponse.Get('elementReferenceNumber', JsonToken) then
-                if JsonToken.IsValue() and (not JsonToken.AsValue().IsNull()) then
-                    SalesInvHeader."KPHG KSeF Element Ref." := CopyStr(JsonToken.AsValue().AsText(), 1, 100);
+            if TryGetJsonText(JsonResponse, 'elementReferenceNumber', TextValue) then
+                SalesInvHeader."KPHG KSeF Element Ref." := CopyStr(TextValue, 1, 100);
 
-            if JsonResponse.Get('sessionReferenceNumber', JsonToken) then
-                if JsonToken.IsValue() and (not JsonToken.AsValue().IsNull()) then
-                    SalesInvHeader."KPHG KSeF Session Ref." := CopyStr(JsonToken.AsValue().AsText(), 1, 100);
+            if TryGetJsonText(JsonResponse, 'sessionReferenceNumber', TextValue) then
+                SalesInvHeader."KPHG KSeF Session Ref." := CopyStr(TextValue, 1, 100);
 
-            if JsonResponse.Get('kSeFReferenceNumber', JsonToken) then
-                if JsonToken.IsValue() and (not JsonToken.AsValue().IsNull()) and (JsonToken.AsValue().AsText() <> '') then begin
-                    SalesInvHeader."KPHG KSeF Number" := CopyStr(JsonToken.AsValue().AsText(), 1, 100);
-                    SalesInvHeader."KPHG KSeF Status" := SalesInvHeader."KPHG KSeF Status"::Accepted;
-                    SalesInvHeader."KPHG KSeF Acceptance DT" := CurrentDateTime();
-                end;
+            if TryGetJsonText(JsonResponse, 'kSeFReferenceNumber', TextValue) then begin
+                SalesInvHeader."KPHG KSeF Number" := CopyStr(TextValue, 1, 100);
+                SalesInvHeader."KPHG KSeF Status" := SalesInvHeader."KPHG KSeF Status"::Accepted;
+                SalesInvHeader."KPHG KSeF Acceptance DT" := CurrentDateTime();
+            end;
 
             SalesInvHeader.Modify(true);
             Message('Invoice %1 submitted to KSeF successfully.', SalesInvHeader."No.");
         end else begin
             SalesInvHeader."KPHG KSeF Status" := SalesInvHeader."KPHG KSeF Status"::Error;
-            if JsonResponse.Get('error', JsonToken) and JsonToken.IsValue() and (not JsonToken.AsValue().IsNull()) then
-                SalesInvHeader."KPHG KSeF Error Message" := CopyStr(FormatErrorMessage(JsonToken.AsValue().AsText()), 1, 250)
+            if TryGetJsonText(JsonResponse, 'error', TextValue) then
+                SalesInvHeader."KPHG KSeF Error Message" := CopyStr(FormatErrorMessage(TextValue), 1, 250)
             else
                 SalesInvHeader."KPHG KSeF Error Message" := 'Unknown error from Azure Function.';
             SalesInvHeader.Modify(true);
@@ -103,6 +104,7 @@ codeunit 50201 "KPHG KSeF Management"
         Client: HttpClient;
         ResponseMessage: HttpResponseMessage;
         ResponseText: Text;
+        TextValue: Text;
         JsonResponse: JsonObject;
         JsonToken: JsonToken;
         Url: Text;
@@ -128,23 +130,26 @@ codeunit 50201 "KPHG KSeF Management"
         ResponseMessage.Content().ReadAs(ResponseText);
         JsonResponse.ReadFrom(ResponseText);
 
-        if JsonResponse.Get('success', JsonToken) and JsonToken.AsValue().AsBoolean() then begin
-            if JsonResponse.Get('kSeFReferenceNumber', JsonToken) and JsonToken.IsValue() and (not JsonToken.AsValue().IsNull()) and (JsonToken.AsValue().AsText() <> '') then begin
-                SalesInvHeader."KPHG KSeF Number" := CopyStr(JsonToken.AsValue().AsText(), 1, 100);
+        if not TryGetJsonText(JsonResponse, 'success', TextValue) then
+            TextValue := '';
+
+        if TextValue = 'true' then begin
+            if TryGetJsonText(JsonResponse, 'kSeFReferenceNumber', TextValue) then begin
+                SalesInvHeader."KPHG KSeF Number" := CopyStr(TextValue, 1, 100);
                 SalesInvHeader."KPHG KSeF Status" := SalesInvHeader."KPHG KSeF Status"::Accepted;
                 SalesInvHeader."KPHG KSeF Acceptance DT" := CurrentDateTime();
                 SalesInvHeader."KPHG KSeF Error Message" := '';
                 SalesInvHeader.Modify(true);
                 Message('Invoice %1 accepted by KSeF. Number: %2', SalesInvHeader."No.", SalesInvHeader."KPHG KSeF Number");
             end else begin
-                if JsonResponse.Get('processingDescription', JsonToken) and JsonToken.IsValue() and (not JsonToken.AsValue().IsNull()) then
-                    Message('Invoice %1 still processing: %2', SalesInvHeader."No.", JsonToken.AsValue().AsText())
+                if TryGetJsonText(JsonResponse, 'processingDescription', TextValue) then
+                    Message('Invoice %1 still processing: %2', SalesInvHeader."No.", TextValue)
                 else
                     Message('Invoice %1 still processing.', SalesInvHeader."No.");
             end;
         end else begin
-            if JsonResponse.Get('error', JsonToken) and JsonToken.IsValue() and (not JsonToken.AsValue().IsNull()) then
-                SalesInvHeader."KPHG KSeF Error Message" := CopyStr(FormatErrorMessage(JsonToken.AsValue().AsText()), 1, 250);
+            if TryGetJsonText(JsonResponse, 'error', TextValue) then
+                SalesInvHeader."KPHG KSeF Error Message" := CopyStr(FormatErrorMessage(TextValue), 1, 250);
             SalesInvHeader."KPHG KSeF Status" := SalesInvHeader."KPHG KSeF Status"::Error;
             SalesInvHeader.Modify(true);
             Error('Status check failed: %1', SalesInvHeader."KPHG KSeF Error Message");
@@ -282,5 +287,16 @@ codeunit 50201 "KPHG KSeF Management"
         JsonObj.Add('lines', LinesArray);
 
         exit(Format(JsonObj));
+    end;
+
+    [TryFunction]
+    local procedure TryGetJsonText(JsonObj: JsonObject; PropertyName: Text; var Result: Text)
+    var
+        JsonToken: JsonToken;
+    begin
+        JsonObj.Get(PropertyName, JsonToken);
+        Result := JsonToken.AsValue().AsText();
+        if Result = '' then
+            Error('');
     end;
 }
