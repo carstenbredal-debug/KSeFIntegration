@@ -1,4 +1,6 @@
 using System.Globalization;
+using System.Text;
+using System.Xml;
 using System.Xml.Linq;
 using KSeF.Functions.Models;
 
@@ -20,9 +22,15 @@ public class InvoiceXmlBuilder
             BuildFaktura(invoice)
         );
 
-        using var sw = new StringWriter();
-        doc.Save(sw);
-        return sw.ToString();
+        using var ms = new MemoryStream();
+        using var xw = XmlWriter.Create(ms, new XmlWriterSettings
+        {
+            Encoding = new UTF8Encoding(false),
+            Indent = true
+        });
+        doc.Save(xw);
+        xw.Flush();
+        return Encoding.UTF8.GetString(ms.ToArray());
     }
 
     private XElement BuildFaktura(InvoiceData inv)
