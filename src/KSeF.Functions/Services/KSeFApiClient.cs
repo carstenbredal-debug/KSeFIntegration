@@ -52,13 +52,16 @@ public class KSeFApiClient
     /// </summary>
     public async Task<KSeFSessionResponse> InitSessionAsync(string nip)
     {
-        _logger.LogInformation("KSeF v2 auth: starting for NIP {NIP}", nip);
+        _logger.LogInformation("KSeF v2 auth: starting for NIP {NIP} against {BaseUrl}", nip, BaseUrl);
+
+        if (string.IsNullOrEmpty(Token))
+            throw new Exception("KSeF token not configured. Set the KSeF__Token environment variable on the Function App.");
 
         // Step 1: Get challenge
         var challengeResp = await _http.PostAsync($"{BaseUrl}/auth/challenge", null);
         var challengeBody = await challengeResp.Content.ReadAsStringAsync();
         if (!challengeResp.IsSuccessStatusCode)
-            throw new Exception($"KSeF auth challenge failed: {challengeResp.StatusCode} - {challengeBody}");
+            throw new Exception($"KSeF auth challenge failed: {challengeResp.StatusCode} - {TruncateForLog(challengeBody)}");
 
         using var challengeDoc = JsonDocument.Parse(challengeBody);
         var challenge = challengeDoc.RootElement.GetProperty("challenge").GetString()!;
@@ -348,6 +351,12 @@ public class KSeFApiClient
             KSeFReferenceNumber = root.TryGetProperty("ksefReferenceNumber", out var kr) ? kr.GetString() : null,
             AcquisitionTimestamp = root.TryGetProperty("acquisitionTimestamp", out var at) ? at.GetDateTime() : null
         };
+    }
+
+    private static string TruncateForLog(string text, int maxLen = 300)
+    {
+        if (text.Length <= maxLen) return text;
+        return text[..maxLen] + "...";
     }
 
     /// <summary>
