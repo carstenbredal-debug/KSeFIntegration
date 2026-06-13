@@ -149,11 +149,12 @@ public class InvoiceXmlBuilder
 
         if (isCreditMemo)
         {
-            // Correction invoice: use P_13_1 and P_14_1 for "after correction" values
-            // For a full credit memo, the corrected amounts are 0
+            // For correction: P_13_1/P_14_1 show "after correction" net/vat, P_15 shows gross
             fa.Add(new XElement(Ns + "P_13_1", "0.00"));
             fa.Add(new XElement(Ns + "P_14_1", "0.00"));
             fa.Add(new XElement(Ns + "P_15", "0.00"));
+            // P_15ZK — corrected gross total, placed right after P_15
+            fa.Add(new XElement(Ns + "P_15ZK", "0.00"));
         }
         else
         {
@@ -183,24 +184,24 @@ public class InvoiceXmlBuilder
 
         if (isCreditMemo)
         {
-            // P_15ZK — corrected gross total (0 for full credit)
-            fa.Add(new XElement(Ns + "P_15ZK", "0.00"));
-
-            // Reason for correction
+            // Reason for correction — must come right after RodzajFaktury
             fa.Add(new XElement(Ns + "PrzyczynaKorekty",
                 !string.IsNullOrWhiteSpace(inv.CorrectionReason) ? inv.CorrectionReason : "Korekta faktury"));
 
-            // Reference to original invoice
-            if (!string.IsNullOrWhiteSpace(inv.OriginalInvoiceKSeFNumber))
-            {
-                fa.Add(new XElement(Ns + "NrFaKorygowanej", inv.OriginalInvoiceKSeFNumber));
-            }
+            // TypKorekty: 1=korekta wartościowa, 2=korekta ilościowa, 3=korekta danych
+            fa.Add(new XElement(Ns + "TypKorekty", 1));
 
-            // Original invoice data
-            fa.Add(new XElement(Ns + "OkresFaKorygowanej",
-                new XElement(Ns + "DataOd", (inv.OriginalInvoiceDate ?? inv.IssueDate).ToString("yyyy-MM-dd")),
-                new XElement(Ns + "DataDo", (inv.OriginalInvoiceDate ?? inv.IssueDate).ToString("yyyy-MM-dd"))
-            ));
+            // DaneFaKorygowanej — reference to original invoice
+            var daneFaKorygowanej = new XElement(Ns + "DaneFaKorygowanej");
+            if (!string.IsNullOrWhiteSpace(inv.OriginalInvoiceDate?.ToString()))
+                daneFaKorygowanej.Add(new XElement(Ns + "DataWystFaKorygowanej", inv.OriginalInvoiceDate!.Value.ToString("yyyy-MM-dd")));
+            else
+                daneFaKorygowanej.Add(new XElement(Ns + "DataWystFaKorygowanej", inv.IssueDate.ToString("yyyy-MM-dd")));
+            if (!string.IsNullOrWhiteSpace(inv.OriginalInvoiceNumber))
+                daneFaKorygowanej.Add(new XElement(Ns + "NrFaKorygowanej", inv.OriginalInvoiceNumber));
+            if (!string.IsNullOrWhiteSpace(inv.OriginalInvoiceKSeFNumber))
+                daneFaKorygowanej.Add(new XElement(Ns + "NrKSeF", inv.OriginalInvoiceKSeFNumber));
+            fa.Add(daneFaKorygowanej);
         }
 
         // Invoice lines
@@ -215,12 +216,6 @@ public class InvoiceXmlBuilder
                 new XElement(Ns + "P_11", Math.Abs(line.NetAmount).ToString("F2", CultureInfo.InvariantCulture)),
                 new XElement(Ns + "P_12", FormatVatRate(line.VatRate))
             );
-
-            if (isCreditMemo)
-            {
-                // For correction lines: StawkaPodatku indicates the correction type
-                lineElement.Add(new XElement(Ns + "StawkaPodatku", FormatVatRate(line.VatRate)));
-            }
 
             fa.Add(lineElement);
         }
