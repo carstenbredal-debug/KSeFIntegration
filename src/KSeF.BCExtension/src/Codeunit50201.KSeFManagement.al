@@ -42,6 +42,12 @@ codeunit 50201 "KPHG KSeF Management"
 
         Client.DefaultRequestHeaders().Add('x-functions-key', Setup."Azure Function Key");
 
+        // Mark as Processing before the HTTP call
+        SalesInvHeader."KPHG KSeF Status" := SalesInvHeader."KPHG KSeF Status"::Processing;
+        SalesInvHeader."KPHG KSeF Error Message" := '';
+        SalesInvHeader.Modify(true);
+        Commit();
+
         Success := Client.Post(Setup."Azure Function URL" + '/invoice/submit', Content, ResponseMessage);
 
         if not Success then begin
