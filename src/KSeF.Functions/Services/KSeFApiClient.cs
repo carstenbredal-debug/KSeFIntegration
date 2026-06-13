@@ -153,8 +153,6 @@ public class KSeFApiClient
         _logger.LogInformation("KSeF auth submitted, ref: {Ref}", referenceNumber);
 
         // Step 5: Poll GET /auth/{ref} until auth is confirmed
-        // The authenticationToken from step 4 IS the access token
-        _accessToken = authenticationToken;
         for (int i = 0; i < 20; i++)
         {
             await Task.Delay(3000);
@@ -174,7 +172,6 @@ public class KSeFApiClient
                 }
                 if (code >= 400)
                 {
-                    _accessToken = null;
                     var desc = status.TryGetProperty("description", out var d) ? d.GetString() : "unknown";
                     var details = status.TryGetProperty("details", out var det)
                         ? string.Join("; ", det.EnumerateArray().Select(x => x.GetString()))
@@ -184,7 +181,24 @@ public class KSeFApiClient
             }
         }
 
-        // Step 6: Open interactive session
+        // Step 6: Redeem authentication token for access token with permissions
+        var redeemReq = new HttpRequestMessage(HttpMethod.Post, $"{BaseUrl}/auth/token/redeem");
+        redeemReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", authenticationToken);
+        var redeemResp = await _http.SendAsync(redeemReq);
+        var redeemBody = await redeemResp.Content.ReadAsStringAsync();
+
+        if (!redeemResp.IsSuccessStatusCode)
+            throw new Exception($"KSeF token redeem failed: {redeemResp.StatusCode} - {TruncateForLog(redeemBody)}");
+
+        using var redeemDoc = JsonDocument.Parse(redeemBody);
+        _accessToken = redeemDoc.RootElement
+            .GetProperty("accessToken")
+            .GetProperty("token").GetString()
+            ?? throw new Exception("KSeF token redeem returned no access token");
+
+        _logger.LogInformation("KSeF access token obtained with permissions");
+
+        // Step 7: Open interactive session
         _aesKey = RandomNumberGenerator.GetBytes(32);
         _aesIv = RandomNumberGenerator.GetBytes(16);
 
