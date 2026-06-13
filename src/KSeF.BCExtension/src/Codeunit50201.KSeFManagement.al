@@ -2,6 +2,7 @@ codeunit 50201 "KPHG KSeF Management"
 {
     Permissions =
         tabledata "Sales Invoice Header" = RIMD,
+        tabledata "Sales Cr.Memo Header" = RIMD,
         tabledata "KPHG KSeF Setup" = R;
 
     procedure MarkReady(var SalesInvHeader: Record "Sales Invoice Header")
@@ -199,6 +200,240 @@ codeunit 50201 "KPHG KSeF Management"
         SalesInvHeader."KPHG KSeF Status" := SalesInvHeader."KPHG KSeF Status"::Rejected;
         SalesInvHeader."KPHG KSeF Error Message" := ErrorMessage;
         SalesInvHeader.Modify(true);
+    end;
+
+    procedure SendCrMemoToKSeF(var SalesCrMemoHeader: Record "Sales Cr.Memo Header")
+    var
+        Setup: Record "KPHG KSeF Setup";
+        Client: HttpClient;
+        Content: HttpContent;
+        Headers: HttpHeaders;
+        ResponseMessage: HttpResponseMessage;
+        RequestBody: Text;
+        ResponseText: Text;
+        TextValue: Text;
+        JsonResponse: JsonObject;
+        JsonToken: JsonToken;
+        Success: Boolean;
+    begin
+        if not SalesCrMemoHeader."KPHG KSeF Required" then
+            Error('KSeF is not required for credit memo %1.', SalesCrMemoHeader."No.");
+
+        if SalesCrMemoHeader."KPHG KSeF Status" = SalesCrMemoHeader."KPHG KSeF Status"::Accepted then
+            Error('Credit memo %1 has already been accepted by KSeF.', SalesCrMemoHeader."No.");
+
+        Setup.GetSetup();
+        if Setup."Azure Function URL" = '' then
+            Error('Azure Function URL is not configured.');
+
+        RequestBody := BuildCrMemoJson(SalesCrMemoHeader);
+
+        Content.WriteFrom(RequestBody);
+        Content.GetHeaders(Headers);
+        Headers.Remove('Content-Type');
+        Headers.Add('Content-Type', 'application/json');
+
+        Client.DefaultRequestHeaders().Add('x-functions-key', Setup."Azure Function Key");
+
+        SalesCrMemoHeader."KPHG KSeF Status" := SalesCrMemoHeader."KPHG KSeF Status"::Processing;
+        SalesCrMemoHeader."KPHG KSeF Error Message" := '';
+        SalesCrMemoHeader.Modify(true);
+        Commit();
+
+        Success := Client.Post(Setup."Azure Function URL" + '/invoice/submit', Content, ResponseMessage);
+
+        if not Success then begin
+            SalesCrMemoHeader."KPHG KSeF Status" := SalesCrMemoHeader."KPHG KSeF Status"::Error;
+            SalesCrMemoHeader."KPHG KSeF Error Message" := 'HTTP request failed.';
+            SalesCrMemoHeader.Modify(true);
+            Error('Failed to connect to Azure Function.');
+        end;
+
+        ResponseMessage.Content().ReadAs(ResponseText);
+        JsonResponse.ReadFrom(ResponseText);
+
+        if not TryGetJsonText(JsonResponse, 'success', TextValue) then
+            TextValue := '';
+
+        if TextValue = 'true' then begin
+            SalesCrMemoHeader."KPHG KSeF Status" := SalesCrMemoHeader."KPHG KSeF Status"::Sent;
+            SalesCrMemoHeader."KPHG KSeF Submission DT" := CurrentDateTime();
+            SalesCrMemoHeader."KPHG KSeF Error Message" := '';
+
+            if TryGetJsonText(JsonResponse, 'elementReferenceNumber', TextValue) then
+                SalesCrMemoHeader."KPHG KSeF Element Ref." := CopyStr(TextValue, 1, 100);
+
+            if TryGetJsonText(JsonResponse, 'sessionReferenceNumber', TextValue) then
+                SalesCrMemoHeader."KPHG KSeF Session Ref." := CopyStr(TextValue, 1, 100);
+
+            if TryGetJsonText(JsonResponse, 'kSeFReferenceNumber', TextValue) then begin
+                SalesCrMemoHeader."KPHG KSeF Number" := CopyStr(TextValue, 1, 100);
+                SalesCrMemoHeader."KPHG KSeF Status" := SalesCrMemoHeader."KPHG KSeF Status"::Accepted;
+                SalesCrMemoHeader."KPHG KSeF Acceptance DT" := CurrentDateTime();
+            end;
+
+            if TryGetJsonText(JsonResponse, 'qrVerificationUrl', TextValue) then
+                SalesCrMemoHeader."KPHG KSeF QR Reference" := CopyStr(TextValue, 1, 250);
+
+            SalesCrMemoHeader.Modify(true);
+            Message('Credit memo %1 submitted to KSeF successfully.', SalesCrMemoHeader."No.");
+        end else begin
+            SalesCrMemoHeader."KPHG KSeF Status" := SalesCrMemoHeader."KPHG KSeF Status"::Error;
+            if TryGetJsonText(JsonResponse, 'error', TextValue) then
+                SalesCrMemoHeader."KPHG KSeF Error Message" := CopyStr(FormatErrorMessage(TextValue), 1, 250)
+            else
+                SalesCrMemoHeader."KPHG KSeF Error Message" := 'Unknown error from Azure Function.';
+            SalesCrMemoHeader.Modify(true);
+            Error('KSeF submission failed: %1', SalesCrMemoHeader."KPHG KSeF Error Message");
+        end;
+    end;
+
+    procedure CheckCrMemoStatus(var SalesCrMemoHeader: Record "Sales Cr.Memo Header")
+    var
+        Setup: Record "KPHG KSeF Setup";
+        Client: HttpClient;
+        ResponseMessage: HttpResponseMessage;
+        ResponseText: Text;
+        TextValue: Text;
+        JsonResponse: JsonObject;
+        JsonToken: JsonToken;
+        Url: Text;
+        Success: Boolean;
+    begin
+        if SalesCrMemoHeader."KPHG KSeF Element Ref." = '' then
+            Error('No KSeF Element Reference found for credit memo %1. Submit it first.', SalesCrMemoHeader."No.");
+
+        Setup.GetSetup();
+        if Setup."Azure Function URL" = '' then
+            Error('Azure Function URL is not configured.');
+
+        Url := Setup."Azure Function URL" + '/invoice/status/' + SalesCrMemoHeader."KPHG KSeF Element Ref."
+            + '?nip=' + Setup."Company NIP"
+            + '&sessionRef=' + SalesCrMemoHeader."KPHG KSeF Session Ref.";
+
+        Client.DefaultRequestHeaders().Add('x-functions-key', Setup."Azure Function Key");
+        Success := Client.Get(Url, ResponseMessage);
+
+        if not Success then
+            Error('Failed to connect to Azure Function.');
+
+        ResponseMessage.Content().ReadAs(ResponseText);
+        JsonResponse.ReadFrom(ResponseText);
+
+        if not TryGetJsonText(JsonResponse, 'success', TextValue) then
+            TextValue := '';
+
+        if TextValue = 'true' then begin
+            if TryGetJsonText(JsonResponse, 'kSeFReferenceNumber', TextValue) then begin
+                SalesCrMemoHeader."KPHG KSeF Number" := CopyStr(TextValue, 1, 100);
+                SalesCrMemoHeader."KPHG KSeF Status" := SalesCrMemoHeader."KPHG KSeF Status"::Accepted;
+                SalesCrMemoHeader."KPHG KSeF Acceptance DT" := CurrentDateTime();
+                SalesCrMemoHeader."KPHG KSeF Error Message" := '';
+                if TryGetJsonText(JsonResponse, 'qrVerificationUrl', TextValue) then
+                    SalesCrMemoHeader."KPHG KSeF QR Reference" := CopyStr(TextValue, 1, 250);
+                SalesCrMemoHeader.Modify(true);
+                Message('Credit memo %1 accepted by KSeF. Number: %2', SalesCrMemoHeader."No.", SalesCrMemoHeader."KPHG KSeF Number");
+            end else begin
+                if TryGetJsonText(JsonResponse, 'processingDescription', TextValue) then
+                    Message('Credit memo %1 still processing: %2', SalesCrMemoHeader."No.", TextValue)
+                else
+                    Message('Credit memo %1 still processing.', SalesCrMemoHeader."No.");
+            end;
+        end else begin
+            if TryGetJsonText(JsonResponse, 'error', TextValue) then
+                SalesCrMemoHeader."KPHG KSeF Error Message" := CopyStr(FormatErrorMessage(TextValue), 1, 250);
+            SalesCrMemoHeader."KPHG KSeF Status" := SalesCrMemoHeader."KPHG KSeF Status"::Error;
+            SalesCrMemoHeader.Modify(true);
+            Error('Status check failed: %1', SalesCrMemoHeader."KPHG KSeF Error Message");
+        end;
+    end;
+
+    local procedure BuildCrMemoJson(SalesCrMemoHeader: Record "Sales Cr.Memo Header"): Text
+    var
+        SalesCrMemoLine: Record "Sales Cr.Memo Line";
+        CompanyInfo: Record "Company Information";
+        Customer: Record Customer;
+        Setup: Record "KPHG KSeF Setup";
+        OriginalInvHeader: Record "Sales Invoice Header";
+        JsonObj: JsonObject;
+        SellerObj: JsonObject;
+        BuyerObj: JsonObject;
+        LinesArray: JsonArray;
+        LineObj: JsonObject;
+        LineNo: Integer;
+    begin
+        CompanyInfo.Get();
+        Customer.Get(SalesCrMemoHeader."Sell-to Customer No.");
+        Setup.GetSetup();
+
+        JsonObj.Add('invoiceNumber', SalesCrMemoHeader."No.");
+        JsonObj.Add('issueDate', Format(SalesCrMemoHeader."Posting Date", 0, '<Year4>-<Month,2>-<Day,2>'));
+        JsonObj.Add('currencyCode', SalesCrMemoHeader."Currency Code");
+        JsonObj.Add('isCreditMemo', true);
+
+        if SalesCrMemoHeader."Currency Code" = '' then
+            JsonObj.Replace('currencyCode', 'PLN');
+
+        // Original invoice reference
+        if SalesCrMemoHeader."KPHG Original Invoice KSeF No." <> '' then
+            JsonObj.Add('originalInvoiceKSeFNumber', SalesCrMemoHeader."KPHG Original Invoice KSeF No.");
+
+        if SalesCrMemoHeader."Applies-to Doc. No." <> '' then begin
+            JsonObj.Add('originalInvoiceNumber', SalesCrMemoHeader."Applies-to Doc. No.");
+            if OriginalInvHeader.Get(SalesCrMemoHeader."Applies-to Doc. No.") then
+                JsonObj.Add('originalInvoiceDate', Format(OriginalInvHeader."Posting Date", 0, '<Year4>-<Month,2>-<Day,2>'));
+        end;
+
+        JsonObj.Add('correctionReason', 'Korekta faktury');
+
+        // Seller
+        SellerObj.Add('nip', Setup."Company NIP");
+        SellerObj.Add('name', CompanyInfo.Name);
+        SellerObj.Add('street', CompanyInfo.Address);
+        SellerObj.Add('buildingNumber', '');
+        SellerObj.Add('city', CompanyInfo.City);
+        SellerObj.Add('postalCode', CompanyInfo."Post Code");
+        SellerObj.Add('countryCode', 'PL');
+        JsonObj.Add('seller', SellerObj);
+
+        // Buyer
+        BuyerObj.Add('nip', Customer."VAT Registration No.");
+        BuyerObj.Add('name', SalesCrMemoHeader."Sell-to Customer Name");
+        BuyerObj.Add('street', SalesCrMemoHeader."Sell-to Address");
+        BuyerObj.Add('buildingNumber', '');
+        BuyerObj.Add('city', SalesCrMemoHeader."Sell-to City");
+        BuyerObj.Add('postalCode', SalesCrMemoHeader."Sell-to Post Code");
+        BuyerObj.Add('countryCode', SalesCrMemoHeader."Sell-to Country/Region Code");
+        JsonObj.Add('buyer', BuyerObj);
+
+        // Payment
+        JsonObj.Add('paymentMethod', 'transfer');
+        if SalesCrMemoHeader."Due Date" <> 0D then
+            JsonObj.Add('paymentDueDate', Format(SalesCrMemoHeader."Due Date", 0, '<Year4>-<Month,2>-<Day,2>'));
+
+        // Lines
+        LineNo := 0;
+        SalesCrMemoLine.SetRange("Document No.", SalesCrMemoHeader."No.");
+        SalesCrMemoLine.SetFilter(Type, '<>%1', SalesCrMemoLine.Type::" ");
+        if SalesCrMemoLine.FindSet() then
+            repeat
+                LineNo += 1;
+                Clear(LineObj);
+                LineObj.Add('lineNumber', LineNo);
+                LineObj.Add('description', SalesCrMemoLine.Description);
+                LineObj.Add('quantity', SalesCrMemoLine.Quantity);
+                LineObj.Add('unitOfMeasure', SalesCrMemoLine."Unit of Measure Code");
+                LineObj.Add('unitPrice', SalesCrMemoLine."Unit Price");
+                LineObj.Add('netAmount', SalesCrMemoLine."Line Amount");
+                LineObj.Add('vatRate', SalesCrMemoLine."VAT %");
+                LineObj.Add('vatAmount', SalesCrMemoLine."Amount Including VAT" - SalesCrMemoLine.Amount);
+                LineObj.Add('grossAmount', SalesCrMemoLine."Amount Including VAT");
+                LinesArray.Add(LineObj);
+            until SalesCrMemoLine.Next() = 0;
+
+        JsonObj.Add('lines', LinesArray);
+
+        exit(Format(JsonObj));
     end;
 
     local procedure FormatErrorMessage(RawError: Text): Text

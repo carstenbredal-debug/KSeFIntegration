@@ -42,5 +42,15 @@ tableextension 50204 "KPHG Sales Cr Memo Hdr Ext" extends "Sales Cr.Memo Header"
             Caption = 'Original Invoice KSeF Number';
             DataClassification = CustomerContent;
         }
+        field(50211; "KPHG KSeF Session Ref."; Code[100])
+        {
+            Caption = 'KSeF Session Reference No.';
+            DataClassification = CustomerContent;
+        }
+        field(50212; "KPHG KSeF QR Reference"; Text[250])
+        {
+            Caption = 'KSeF QR Reference';
+            DataClassification = CustomerContent;
+        }
     }
 }

@@ -25,6 +25,13 @@ public class InvoiceData
     public string PaymentMethod { get; set; } = "transfer";
     public DateTime? PaymentDueDate { get; set; }
     public string? BankAccountNumber { get; set; }
+
+    // Credit memo fields
+    public bool IsCreditMemo { get; set; }
+    public string? OriginalInvoiceKSeFNumber { get; set; }
+    public string? OriginalInvoiceNumber { get; set; }
+    public DateTime? OriginalInvoiceDate { get; set; }
+    public string? CorrectionReason { get; set; }
 }
 
 public class SellerData

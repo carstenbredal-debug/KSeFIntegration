@@ -133,45 +133,96 @@ public class InvoiceXmlBuilder
     private XElement BuildFa(InvoiceData inv)
     {
         var currencyCode = string.IsNullOrWhiteSpace(inv.CurrencyCode) ? "PLN" : inv.CurrencyCode;
+        var isCreditMemo = inv.IsCreditMemo;
+
+        // Credit memos have negative amounts — use absolute values for XML totals
+        var totalNet = inv.Lines.Sum(l => Math.Abs(l.NetAmount));
+        var totalVat23 = inv.Lines.Where(l => l.VatRate == 23).Sum(l => Math.Abs(l.VatAmount));
+        var totalGross = inv.Lines.Sum(l => Math.Abs(l.GrossAmount));
+
         var fa = new XElement(Ns + "Fa",
             new XElement(Ns + "KodWaluty", currencyCode),
             new XElement(Ns + "P_1", inv.IssueDate.ToString("yyyy-MM-dd")),
             new XElement(Ns + "P_2", inv.InvoiceNumber),
-            new XElement(Ns + "P_6", inv.SaleDate?.ToString("yyyy-MM-dd") ?? inv.IssueDate.ToString("yyyy-MM-dd")),
-            new XElement(Ns + "P_13_1", inv.Lines.Sum(l => l.NetAmount).ToString("F2", CultureInfo.InvariantCulture)),
-            new XElement(Ns + "P_14_1", inv.Lines.Where(l => l.VatRate == 23).Sum(l => l.VatAmount).ToString("F2", CultureInfo.InvariantCulture)),
-            new XElement(Ns + "P_15", inv.Lines.Sum(l => l.GrossAmount).ToString("F2", CultureInfo.InvariantCulture)),
-            new XElement(Ns + "Adnotacje",
-                new XElement(Ns + "P_16", 2),
-                new XElement(Ns + "P_17", 2),
-                new XElement(Ns + "P_18", 2),
-                new XElement(Ns + "P_18A", 2),
-                new XElement(Ns + "Zwolnienie",
-                    new XElement(Ns + "P_19N", 1)
-                ),
-                new XElement(Ns + "NoweSrodkiTransportu",
-                    new XElement(Ns + "P_22N", 1)
-                ),
-                new XElement(Ns + "P_23", 2),
-                new XElement(Ns + "PMarzy",
-                    new XElement(Ns + "P_PMarzyN", 1)
-                )
-            ),
-            new XElement(Ns + "RodzajFaktury", "VAT")
+            new XElement(Ns + "P_6", inv.SaleDate?.ToString("yyyy-MM-dd") ?? inv.IssueDate.ToString("yyyy-MM-dd"))
         );
 
-        // Invoice lines — individual FaWiersz elements directly inside Fa
+        if (isCreditMemo)
+        {
+            // Correction invoice: use P_13_1 and P_14_1 for "after correction" values
+            // For a full credit memo, the corrected amounts are 0
+            fa.Add(new XElement(Ns + "P_13_1", "0.00"));
+            fa.Add(new XElement(Ns + "P_14_1", "0.00"));
+            fa.Add(new XElement(Ns + "P_15", "0.00"));
+        }
+        else
+        {
+            fa.Add(new XElement(Ns + "P_13_1", totalNet.ToString("F2", CultureInfo.InvariantCulture)));
+            fa.Add(new XElement(Ns + "P_14_1", totalVat23.ToString("F2", CultureInfo.InvariantCulture)));
+            fa.Add(new XElement(Ns + "P_15", totalGross.ToString("F2", CultureInfo.InvariantCulture)));
+        }
+
+        fa.Add(new XElement(Ns + "Adnotacje",
+            new XElement(Ns + "P_16", 2),
+            new XElement(Ns + "P_17", 2),
+            new XElement(Ns + "P_18", 2),
+            new XElement(Ns + "P_18A", 2),
+            new XElement(Ns + "Zwolnienie",
+                new XElement(Ns + "P_19N", 1)
+            ),
+            new XElement(Ns + "NoweSrodkiTransportu",
+                new XElement(Ns + "P_22N", 1)
+            ),
+            new XElement(Ns + "P_23", 2),
+            new XElement(Ns + "PMarzy",
+                new XElement(Ns + "P_PMarzyN", 1)
+            )
+        ));
+
+        fa.Add(new XElement(Ns + "RodzajFaktury", isCreditMemo ? "KOR" : "VAT"));
+
+        if (isCreditMemo)
+        {
+            // P_15ZK — corrected gross total (0 for full credit)
+            fa.Add(new XElement(Ns + "P_15ZK", "0.00"));
+
+            // Reason for correction
+            fa.Add(new XElement(Ns + "PrzyczynaKorekty",
+                !string.IsNullOrWhiteSpace(inv.CorrectionReason) ? inv.CorrectionReason : "Korekta faktury"));
+
+            // Reference to original invoice
+            if (!string.IsNullOrWhiteSpace(inv.OriginalInvoiceKSeFNumber))
+            {
+                fa.Add(new XElement(Ns + "NrFaKorygowanej", inv.OriginalInvoiceKSeFNumber));
+            }
+
+            // Original invoice data
+            fa.Add(new XElement(Ns + "OkresFaKorygowanej",
+                new XElement(Ns + "DataOd", (inv.OriginalInvoiceDate ?? inv.IssueDate).ToString("yyyy-MM-dd")),
+                new XElement(Ns + "DataDo", (inv.OriginalInvoiceDate ?? inv.IssueDate).ToString("yyyy-MM-dd"))
+            ));
+        }
+
+        // Invoice lines
         foreach (var line in inv.Lines)
         {
-            fa.Add(new XElement(Ns + "FaWiersz",
+            var lineElement = new XElement(Ns + "FaWiersz",
                 new XElement(Ns + "NrWierszaFa", line.LineNumber),
                 new XElement(Ns + "P_7", line.Description),
                 new XElement(Ns + "P_8A", line.UnitOfMeasure),
-                new XElement(Ns + "P_8B", line.Quantity.ToString("F4", CultureInfo.InvariantCulture)),
-                new XElement(Ns + "P_9A", line.UnitPrice.ToString("F2", CultureInfo.InvariantCulture)),
-                new XElement(Ns + "P_11", line.NetAmount.ToString("F2", CultureInfo.InvariantCulture)),
+                new XElement(Ns + "P_8B", Math.Abs(line.Quantity).ToString("F4", CultureInfo.InvariantCulture)),
+                new XElement(Ns + "P_9A", Math.Abs(line.UnitPrice).ToString("F2", CultureInfo.InvariantCulture)),
+                new XElement(Ns + "P_11", Math.Abs(line.NetAmount).ToString("F2", CultureInfo.InvariantCulture)),
                 new XElement(Ns + "P_12", FormatVatRate(line.VatRate))
-            ));
+            );
+
+            if (isCreditMemo)
+            {
+                // For correction lines: StawkaPodatku indicates the correction type
+                lineElement.Add(new XElement(Ns + "StawkaPodatku", FormatVatRate(line.VatRate)));
+            }
+
+            fa.Add(lineElement);
         }
 
         // Payment info
