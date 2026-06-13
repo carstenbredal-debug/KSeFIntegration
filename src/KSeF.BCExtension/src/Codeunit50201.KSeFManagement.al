@@ -75,7 +75,7 @@ codeunit 50201 "KPHG KSeF Management"
             if JsonResponse.Get('sessionReferenceNumber', JsonToken) then
                 SalesInvHeader."KPHG KSeF Session Ref." := CopyStr(JsonToken.AsValue().AsText(), 1, 100);
 
-            if JsonResponse.Get('ksefReferenceNumber', JsonToken) then begin
+            if JsonResponse.Get('kSeFReferenceNumber', JsonToken) then begin
                 SalesInvHeader."KPHG KSeF Number" := CopyStr(JsonToken.AsValue().AsText(), 1, 100);
                 SalesInvHeader."KPHG KSeF Status" := SalesInvHeader."KPHG KSeF Status"::Accepted;
                 SalesInvHeader."KPHG KSeF Acceptance DT" := CurrentDateTime();
@@ -126,7 +126,7 @@ codeunit 50201 "KPHG KSeF Management"
         JsonResponse.ReadFrom(ResponseText);
 
         if JsonResponse.Get('success', JsonToken) and JsonToken.AsValue().AsBoolean() then begin
-            if JsonResponse.Get('ksefReferenceNumber', JsonToken) and (JsonToken.AsValue().AsText() <> '') then begin
+            if JsonResponse.Get('kSeFReferenceNumber', JsonToken) and (JsonToken.AsValue().AsText() <> '') then begin
                 SalesInvHeader."KPHG KSeF Number" := CopyStr(JsonToken.AsValue().AsText(), 1, 100);
                 SalesInvHeader."KPHG KSeF Status" := SalesInvHeader."KPHG KSeF Status"::Accepted;
                 SalesInvHeader."KPHG KSeF Acceptance DT" := CurrentDateTime();
