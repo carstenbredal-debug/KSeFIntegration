@@ -1,5 +1,9 @@
 codeunit 50200 "KPHG Posting Subscribers"
 {
+    Permissions =
+        tabledata "Sales Invoice Header" = RIMD,
+        tabledata "Sales Invoice Line" = RIMD,
+        tabledata "KPHG KSeF Setup" = R;
     [EventSubscriber(ObjectType::Codeunit, Codeunit::"Sales-Post", 'OnAfterSalesInvHeaderInsert', '', false, false)]
     local procedure CopyHeaderFields(var SalesInvHeader: Record "Sales Invoice Header"; SalesHeader: Record "Sales Header")
     var

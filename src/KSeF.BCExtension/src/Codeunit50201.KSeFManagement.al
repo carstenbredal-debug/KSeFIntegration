@@ -1,5 +1,9 @@
 codeunit 50201 "KPHG KSeF Management"
 {
+    Permissions =
+        tabledata "Sales Invoice Header" = RIMD,
+        tabledata "KPHG KSeF Setup" = R;
+
     procedure MarkReady(var SalesInvHeader: Record "Sales Invoice Header")
     begin
         if not SalesInvHeader."KPHG KSeF Required" then
