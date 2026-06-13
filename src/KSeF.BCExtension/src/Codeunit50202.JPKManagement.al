@@ -192,6 +192,9 @@ codeunit 50202 "KPHG JPK Management"
                 if SalesInvHeader."Due Date" <> 0D then
                     SaleObj.Add('paymentDueDate', Format(SalesInvHeader."Due Date", 0, '<Year4>-<Month,2>-<Day,2>'));
 
+                if SalesInvHeader."KPHG KSeF Number" <> '' then
+                    SaleObj.Add('kSeFReferenceNumber', SalesInvHeader."KPHG KSeF Number");
+
                 SaleObj.Add('isCreditMemo', false);
                 SaleObj.Add('netAmount', CalcInvNetAmount(SalesInvHeader."No."));
                 SaleObj.Add('vatAmount', CalcInvVatAmount(SalesInvHeader."No."));
@@ -218,6 +221,9 @@ codeunit 50202 "KPHG JPK Management"
 
                 if SalesCrMemoHeader."Due Date" <> 0D then
                     SaleObj.Add('paymentDueDate', Format(SalesCrMemoHeader."Due Date", 0, '<Year4>-<Month,2>-<Day,2>'));
+
+                if SalesCrMemoHeader."KPHG KSeF Number" <> '' then
+                    SaleObj.Add('kSeFReferenceNumber', SalesCrMemoHeader."KPHG KSeF Number");
 
                 SaleObj.Add('isCreditMemo', true);
                 SaleObj.Add('netAmount', -CalcCrMemoNetAmount(SalesCrMemoHeader."No."));

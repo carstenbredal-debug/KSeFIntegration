@@ -8,8 +8,8 @@ namespace KSeF.Functions.Services;
 
 public class JpkV7MBuilder
 {
-    private static readonly XNamespace Ns = "http://crd.gov.pl/wzor/2021/12/27/11148/";
-    private static readonly XNamespace Etd = "http://crd.gov.pl/xml/schematy/dziedzinowe/mf/2021/06/08/eD/DefinicjeTypy/";
+    private static readonly XNamespace Ns = "http://crd.gov.pl/wzor/2025/12/19/14090/";
+    private static readonly XNamespace Etd = "http://crd.gov.pl/xml/schematy/dziedzinowe/mf/2022/09/13/eD/DefinicjeTypy/";
 
     public (string xml, int salesCount, decimal taxDue) Build(JpkV7MRequest req)
     {
@@ -56,15 +56,15 @@ public class JpkV7MBuilder
 
         return new XElement(Ns + "Naglowek",
             new XElement(Ns + "KodFormularza",
-                new XAttribute("kodSystemowy", "JPK_V7M (2)"),
+                new XAttribute("kodSystemowy", "JPK_V7M (3)"),
                 new XAttribute("wersjaSchemy", "1-0E"),
                 "JPK_VAT"
             ),
-            new XElement(Ns + "WariantFormularza", 2),
+            new XElement(Ns + "WariantFormularza", 3),
             new XElement(Ns + "DataWytworzeniaJPK", DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ")),
             new XElement(Ns + "NazwaSystemu", "KPHG KSeF Integration"),
             new XElement(Ns + "CelZlozenia",
-                new XAttribute("ppiVersion", "1-0E"),
+                new XAttribute("poz", "P_7"),
                 celZlozenia
             ),
             new XElement(Ns + "KodUrzedu", "0271"),
@@ -84,7 +84,9 @@ public class JpkV7MBuilder
         if (!string.IsNullOrWhiteSpace(company.Phone))
             osoba.Add(new XElement(Ns + "Telefon", company.Phone));
 
-        return new XElement(Ns + "Podmiot1", osoba);
+        return new XElement(Ns + "Podmiot1",
+            new XAttribute("rola", "Podatnik"),
+            osoba);
     }
 
     private (XElement deklaracja, decimal taxDue) BuildDeklaracja(JpkV7MRequest req)
@@ -123,83 +125,71 @@ public class JpkV7MBuilder
         var totalNet = totalNet23 + totalNet8 + totalNet5 + totalNet0;
 
         var pozycje = new XElement(Ns + "PozycjeSzczegolowe",
-            new XElement(Ns + "P_10", Fmt(totalNet0)),
-            new XElement(Ns + "P_11", Fmt(totalNet5)),
-            new XElement(Ns + "P_12", Fmt(totalVat5)),
-            new XElement(Ns + "P_13", Fmt(totalNet8)),
-            new XElement(Ns + "P_14", Fmt(totalVat8)),
-            new XElement(Ns + "P_15", Fmt(totalNet23)),
-            new XElement(Ns + "P_16", Fmt(totalVat23)),
-            new XElement(Ns + "P_17", Fmt(0)),
-            new XElement(Ns + "P_18", Fmt(0)),
-            new XElement(Ns + "P_19", Fmt(0)),
-            new XElement(Ns + "P_20", Fmt(0)),
-            new XElement(Ns + "P_21", Fmt(0)),
-            new XElement(Ns + "P_22", Fmt(0)),
-            new XElement(Ns + "P_23", Fmt(totalNet)),
-            new XElement(Ns + "P_24", Fmt(totalTaxDue)),
-            new XElement(Ns + "P_25", Fmt(0)),
-            new XElement(Ns + "P_26", Fmt(0)),
-            new XElement(Ns + "P_27", Fmt(0)),
-            new XElement(Ns + "P_28", Fmt(0)),
-            new XElement(Ns + "P_29", Fmt(0)),
-            new XElement(Ns + "P_30", Fmt(0)),
-            new XElement(Ns + "P_31", Fmt(0)),
-            new XElement(Ns + "P_32", Fmt(0)),
-            new XElement(Ns + "P_33", Fmt(0)),
-            new XElement(Ns + "P_34", Fmt(0)),
-            new XElement(Ns + "P_35", Fmt(0)),
-            new XElement(Ns + "P_36", Fmt(0)),
-            new XElement(Ns + "P_37", Fmt(totalTaxDue)),
-            new XElement(Ns + "P_38", Fmt(totalTaxDue)),
-            new XElement(Ns + "P_39", Fmt(0)),
-            new XElement(Ns + "P_40", Fmt(0)),
-            new XElement(Ns + "P_41", Fmt(0)),
-            new XElement(Ns + "P_42", Fmt(0)),
-            new XElement(Ns + "P_43", Fmt(0)),
-            new XElement(Ns + "P_44", Fmt(0)),
-            new XElement(Ns + "P_45", Fmt(0)),
-            new XElement(Ns + "P_46", Fmt(0)),
-            new XElement(Ns + "P_47", Fmt(0)),
-            new XElement(Ns + "P_48", Fmt(0)),
-            new XElement(Ns + "P_49", Fmt(0)),
-            new XElement(Ns + "P_50", Fmt(0)),
-            new XElement(Ns + "P_51", Fmt(totalTaxDue)),
-            new XElement(Ns + "P_52", Fmt(0)),
-            new XElement(Ns + "P_53", Fmt(totalTaxDue)),
-            new XElement(Ns + "P_54", Fmt(totalTaxDue)),
+            new XElement(Ns + "P_10", FmtInt(totalNet0)),
+            new XElement(Ns + "P_11", FmtInt(totalNet5)),
+            new XElement(Ns + "P_12", FmtInt(totalVat5)),
+            new XElement(Ns + "P_13", FmtInt(totalNet8)),
+            new XElement(Ns + "P_14", FmtInt(totalVat8)),
+            new XElement(Ns + "P_15", FmtInt(totalNet23)),
+            new XElement(Ns + "P_16", FmtInt(totalVat23)),
+            new XElement(Ns + "P_17", FmtInt(0)),
+            new XElement(Ns + "P_18", FmtInt(0)),
+            new XElement(Ns + "P_19", FmtInt(0)),
+            new XElement(Ns + "P_20", FmtInt(0)),
+            new XElement(Ns + "P_21", FmtInt(0)),
+            new XElement(Ns + "P_22", FmtInt(0)),
+            new XElement(Ns + "P_23", FmtInt(totalNet)),
+            new XElement(Ns + "P_24", FmtInt(totalTaxDue)),
+            new XElement(Ns + "P_25", FmtInt(0)),
+            new XElement(Ns + "P_26", FmtInt(0)),
+            new XElement(Ns + "P_27", FmtInt(0)),
+            new XElement(Ns + "P_28", FmtInt(0)),
+            new XElement(Ns + "P_29", FmtInt(0)),
+            new XElement(Ns + "P_30", FmtInt(0)),
+            new XElement(Ns + "P_31", FmtInt(0)),
+            new XElement(Ns + "P_32", FmtInt(0)),
+            new XElement(Ns + "P_33", FmtInt(0)),
+            new XElement(Ns + "P_34", FmtInt(0)),
+            new XElement(Ns + "P_35", FmtInt(0)),
+            new XElement(Ns + "P_36", FmtInt(0)),
+            new XElement(Ns + "P_37", FmtInt(totalTaxDue)),
+            new XElement(Ns + "P_38", FmtInt(totalTaxDue)),
+            new XElement(Ns + "P_39", FmtInt(0)),
+            new XElement(Ns + "P_40", FmtInt(0)),
+            new XElement(Ns + "P_41", FmtInt(0)),
+            new XElement(Ns + "P_42", FmtInt(0)),
+            new XElement(Ns + "P_43", FmtInt(0)),
+            new XElement(Ns + "P_44", FmtInt(0)),
+            new XElement(Ns + "P_45", FmtInt(0)),
+            new XElement(Ns + "P_46", FmtInt(0)),
+            new XElement(Ns + "P_47", FmtInt(0)),
+            new XElement(Ns + "P_48", FmtInt(0)),
+            new XElement(Ns + "P_49", FmtInt(0)),
+            new XElement(Ns + "P_50", FmtInt(0)),
+            new XElement(Ns + "P_51", FmtInt(totalTaxDue)),
+            new XElement(Ns + "P_52", FmtInt(0)),
+            new XElement(Ns + "P_53", FmtInt(totalTaxDue)),
+            new XElement(Ns + "P_54", FmtInt(totalTaxDue)),
+            // P_540/P_55/P_56/P_560/P_58 is a choice — pick one refund term
             new XElement(Ns + "P_540", 1),
-            new XElement(Ns + "P_55", 1),
-            new XElement(Ns + "P_56", 1),
-            new XElement(Ns + "P_560", 1),
-            new XElement(Ns + "P_57", 1),
-            new XElement(Ns + "P_58", 1),
-            new XElement(Ns + "P_59", 1),
-            new XElement(Ns + "P_60", 2),
-            new XElement(Ns + "P_61", 2),
-            new XElement(Ns + "P_62", 2),
-            new XElement(Ns + "P_63", 1),
-            new XElement(Ns + "P_64", 1),
-            new XElement(Ns + "P_65", 1),
-            new XElement(Ns + "P_66", 1),
-            new XElement(Ns + "P_660", 1),
-            new XElement(Ns + "P_67", 1),
-            new XElement(Ns + "P_68", Fmt(totalTaxDue)),
-            new XElement(Ns + "P_69", 1)
+            // P_59/P_60/P_61 optional group (credit to future obligations) — omitted
+            new XElement(Ns + "P_68", FmtInt(0)),
+            new XElement(Ns + "P_69", FmtInt(0))
         );
 
         var deklaracja = new XElement(Ns + "Deklaracja",
             new XElement(Ns + "Naglowek",
                 new XElement(Ns + "KodFormularzaDekl",
-                    new XAttribute("kodSystemowy", "VAT-7 (22)"),
+                    new XAttribute("kodSystemowy", "VAT-7 (23)"),
                     new XAttribute("kodPodatku", "VAT"),
                     new XAttribute("rodzajZobowiazania", "Z"),
                     new XAttribute("wersjaSchemy", "1-0E"),
                     "VAT-7"
                 ),
-                new XElement(Ns + "WariantFormularzaDekl", 22)
+                new XElement(Ns + "WariantFormularzaDekl", 23)
             ),
-            pozycje
+            pozycje,
+            new XElement(Ns + "Pouczenia", 1)
         );
 
         return (deklaracja, totalTaxDue);
@@ -230,14 +220,11 @@ public class JpkV7MBuilder
             if (!string.IsNullOrWhiteSpace(rec.SaleDate))
                 wiersz.Add(new XElement(Ns + "DataSprzedazy", rec.SaleDate));
 
-            // KorektaPodstawyOpodt
-            wiersz.Add(new XElement(Ns + "KorektaPodstawyOpodt", 1));
-
-            // Payment dates
-            if (!string.IsNullOrWhiteSpace(rec.PaymentDueDate))
-            {
-                wiersz.Add(new XElement(Ns + "TerminPlatnosci", rec.PaymentDueDate));
-            }
+            // KSeF choice (required in v3): NrKSeF, OFF, BFK, or DI
+            if (!string.IsNullOrEmpty(rec.KSeFReferenceNumber))
+                wiersz.Add(new XElement(Ns + "NrKSeF", rec.KSeFReferenceNumber));
+            else
+                wiersz.Add(new XElement(Ns + "BFK", 1));
 
             // VAT amounts by rate — simplified: put all in K_19 (net 23%) and K_20 (vat 23%)
             var vatRate = rec.NetAmount != 0 ? Math.Round(rec.VatAmount / rec.NetAmount * 100, 0) : 0;
@@ -282,4 +269,7 @@ public class JpkV7MBuilder
 
     private static string Fmt(decimal value) =>
         value.ToString("F2", CultureInfo.InvariantCulture);
+
+    private static string FmtInt(decimal value) =>
+        Math.Round(value, 0, MidpointRounding.AwayFromZero).ToString("F0", CultureInfo.InvariantCulture);
 }

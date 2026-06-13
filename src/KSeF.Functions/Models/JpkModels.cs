@@ -28,6 +28,7 @@ public class SalesRecordData
     public string CounterpartyName { get; set; } = "";
     public string? CountryCode { get; set; }
     public string? PaymentDueDate { get; set; }
+    public string? KSeFReferenceNumber { get; set; }
     public bool IsCreditMemo { get; set; }
     public decimal NetAmount { get; set; }
     public decimal VatAmount { get; set; }
