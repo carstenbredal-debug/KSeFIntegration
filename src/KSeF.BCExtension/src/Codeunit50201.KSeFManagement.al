@@ -83,7 +83,7 @@ codeunit 50201 "KPHG KSeF Management"
         end else begin
             SalesInvHeader."KPHG KSeF Status" := SalesInvHeader."KPHG KSeF Status"::Error;
             if JsonResponse.Get('error', JsonToken) then
-                SalesInvHeader."KPHG KSeF Error Message" := CopyStr(JsonToken.AsValue().AsText(), 1, 250)
+                SalesInvHeader."KPHG KSeF Error Message" := CopyStr(FormatErrorMessage(JsonToken.AsValue().AsText()), 1, 250)
             else
                 SalesInvHeader."KPHG KSeF Error Message" := 'Unknown error from Azure Function.';
             SalesInvHeader.Modify(true);
@@ -137,7 +137,7 @@ codeunit 50201 "KPHG KSeF Management"
             SalesInvHeader.Modify(true);
         end else begin
             if JsonResponse.Get('error', JsonToken) then
-                SalesInvHeader."KPHG KSeF Error Message" := CopyStr(JsonToken.AsValue().AsText(), 1, 250);
+                SalesInvHeader."KPHG KSeF Error Message" := CopyStr(FormatErrorMessage(JsonToken.AsValue().AsText()), 1, 250);
             SalesInvHeader."KPHG KSeF Status" := SalesInvHeader."KPHG KSeF Status"::Error;
             SalesInvHeader.Modify(true);
             Error('Status check failed: %1', SalesInvHeader."KPHG KSeF Error Message");
@@ -182,6 +182,25 @@ codeunit 50201 "KPHG KSeF Management"
         SalesInvHeader."KPHG KSeF Status" := SalesInvHeader."KPHG KSeF Status"::Rejected;
         SalesInvHeader."KPHG KSeF Error Message" := ErrorMessage;
         SalesInvHeader.Modify(true);
+    end;
+
+    local procedure FormatErrorMessage(RawError: Text): Text
+    begin
+        if RawError.Contains('ServiceUnavailable') or RawError.Contains('zamkni') then
+            exit('KSeF service is temporarily unavailable. Please try again later.');
+        if RawError.Contains('Unauthorized') or RawError.Contains('401') then
+            exit('KSeF authentication failed. Please check the KSeF token in Azure Function settings.');
+        if RawError.Contains('Forbidden') or RawError.Contains('403') then
+            exit('Access denied by KSeF. Please verify your NIP and token permissions.');
+        if RawError.Contains('BadRequest') or RawError.Contains('400') then
+            exit('Invalid invoice data. Please check the invoice fields and try again.');
+        if RawError.Contains('session init failed') then
+            exit('Could not connect to KSeF. The service may be down for maintenance.');
+        if RawError.Contains('invoice send failed') then
+            exit('KSeF rejected the invoice. Please verify the invoice data is correct.');
+        if StrLen(RawError) > 250 then
+            exit(CopyStr(RawError, 1, 247) + '...');
+        exit(RawError);
     end;
 
     local procedure BuildInvoiceJson(SalesInvHeader: Record "Sales Invoice Header"): Text
