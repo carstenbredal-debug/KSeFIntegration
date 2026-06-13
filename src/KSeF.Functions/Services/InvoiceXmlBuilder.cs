@@ -70,13 +70,14 @@ public class InvoiceXmlBuilder
 
     private XElement BuildPodmiot1(SellerData seller)
     {
+        var countryCode = string.IsNullOrWhiteSpace(seller.CountryCode) ? "PL" : seller.CountryCode;
         return new XElement(Ns + "Podmiot1",
             new XElement(Ns + "DaneIdentyfikacyjne",
                 new XElement(Ns + "NIP", CleanNip(seller.NIP)),
                 new XElement(Ns + "Nazwa", seller.Name)
             ),
             new XElement(Ns + "Adres",
-                new XElement(Ns + "KodKraju", seller.CountryCode),
+                new XElement(Ns + "KodKraju", countryCode),
                 new XElement(Ns + "AdresL1", FormatAddress(seller.Street, seller.BuildingNumber, seller.ApartmentNumber)),
                 new XElement(Ns + "AdresL2", $"{seller.PostalCode} {seller.City}")
             )
@@ -85,13 +86,14 @@ public class InvoiceXmlBuilder
 
     private XElement BuildPodmiot2(BuyerData buyer)
     {
+        var countryCode = string.IsNullOrWhiteSpace(buyer.CountryCode) ? "PL" : buyer.CountryCode;
         return new XElement(Ns + "Podmiot2",
             new XElement(Ns + "DaneIdentyfikacyjne",
                 new XElement(Ns + "NIP", CleanNip(buyer.NIP)),
                 new XElement(Ns + "Nazwa", buyer.Name)
             ),
             new XElement(Ns + "Adres",
-                new XElement(Ns + "KodKraju", buyer.CountryCode),
+                new XElement(Ns + "KodKraju", countryCode),
                 new XElement(Ns + "AdresL1", FormatAddress(buyer.Street, buyer.BuildingNumber, buyer.ApartmentNumber)),
                 new XElement(Ns + "AdresL2", $"{buyer.PostalCode} {buyer.City}")
             )
@@ -100,8 +102,9 @@ public class InvoiceXmlBuilder
 
     private XElement BuildFa(InvoiceData inv)
     {
+        var currencyCode = string.IsNullOrWhiteSpace(inv.CurrencyCode) ? "PLN" : inv.CurrencyCode;
         var fa = new XElement(Ns + "Fa",
-            new XElement(Ns + "KodWaluty", inv.CurrencyCode),
+            new XElement(Ns + "KodWaluty", currencyCode),
             new XElement(Ns + "P_1", inv.IssueDate.ToString("yyyy-MM-dd")),
             new XElement(Ns + "P_2", inv.InvoiceNumber),
             new XElement(Ns + "P_6", inv.SaleDate?.ToString("yyyy-MM-dd") ?? inv.IssueDate.ToString("yyyy-MM-dd")),
@@ -159,8 +162,14 @@ public class InvoiceXmlBuilder
         return fa;
     }
 
-    private static string CleanNip(string nip) =>
-        new string(nip.Where(char.IsDigit).ToArray());
+    private static string CleanNip(string nip)
+    {
+        var digits = new string(nip.Where(char.IsDigit).ToArray());
+        // Polish NIP must be exactly 10 digits
+        if (digits.Length > 10)
+            digits = digits[..10];
+        return digits;
+    }
 
     private static string FormatAddress(string street, string building, string? apartment) =>
         string.IsNullOrEmpty(apartment)
