@@ -10,6 +10,7 @@ var host = new HostBuilder()
     {
         services.AddHttpClient<KSeFApiClient>();
         services.AddSingleton<InvoiceXmlBuilder>();
+        services.AddSingleton<JpkV7MBuilder>();
     })
     .Build();
 
