@@ -152,8 +152,9 @@ public class KSeFApiClient
 
         _logger.LogInformation("KSeF auth submitted, ref: {Ref}", referenceNumber);
 
-        // Step 5: Poll GET /auth/{ref} for accessToken
-        _accessToken = null;
+        // Step 5: Poll GET /auth/{ref} until auth is confirmed
+        // The authenticationToken from step 4 IS the access token
+        _accessToken = authenticationToken;
         for (int i = 0; i < 20; i++)
         {
             await Task.Delay(3000);
@@ -168,14 +169,12 @@ public class KSeFApiClient
                 var code = status.GetProperty("code").GetInt32();
                 if (code == 200)
                 {
-                    _accessToken = statusDoc.RootElement
-                        .GetProperty("accessToken")
-                        .GetProperty("token").GetString();
-                    _logger.LogInformation("KSeF auth succeeded");
+                    _logger.LogInformation("KSeF auth confirmed");
                     break;
                 }
                 if (code >= 400)
                 {
+                    _accessToken = null;
                     var desc = status.TryGetProperty("description", out var d) ? d.GetString() : "unknown";
                     var details = status.TryGetProperty("details", out var det)
                         ? string.Join("; ", det.EnumerateArray().Select(x => x.GetString()))
@@ -184,9 +183,6 @@ public class KSeFApiClient
                 }
             }
         }
-
-        if (_accessToken == null)
-            throw new Exception("KSeF auth timed out waiting for accessToken");
 
         // Step 6: Open interactive session
         _aesKey = RandomNumberGenerator.GetBytes(32);
