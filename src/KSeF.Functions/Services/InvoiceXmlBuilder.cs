@@ -29,7 +29,7 @@ public class InvoiceXmlBuilder
     {
         var faktura = new XElement(Ns + "Faktura",
             new XAttribute(XNamespace.Xmlns + "xsi", Xsi),
-            new XAttribute("xsi:schemaLocation", "http://crd.gov.pl/wzor/2023/06/29/12648/ http://crd.gov.pl/wzor/2023/06/29/12648/schemat.xsd"),
+            new XAttribute(Xsi + "schemaLocation", "http://crd.gov.pl/wzor/2023/06/29/12648/ http://crd.gov.pl/wzor/2023/06/29/12648/schemat.xsd"),
 
             // Naglowek (Header)
             BuildNaglowek(inv),
