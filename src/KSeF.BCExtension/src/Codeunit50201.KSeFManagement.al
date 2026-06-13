@@ -16,7 +16,6 @@ codeunit 50201 "KPHG KSeF Management"
         Client: HttpClient;
         Content: HttpContent;
         Headers: HttpHeaders;
-        RequestMessage: HttpRequestMessage;
         ResponseMessage: HttpResponseMessage;
         RequestBody: Text;
         ResponseText: Text;
@@ -43,12 +42,6 @@ codeunit 50201 "KPHG KSeF Management"
 
         Client.DefaultRequestHeaders().Add('x-functions-key', Setup."Azure Function Key");
 
-        SalesInvHeader."KPHG KSeF Status" := SalesInvHeader."KPHG KSeF Status"::Sent;
-        SalesInvHeader."KPHG KSeF Submission DT" := CurrentDateTime();
-        SalesInvHeader."KPHG KSeF Error Message" := '';
-        SalesInvHeader.Modify(true);
-        Commit();
-
         Success := Client.Post(Setup."Azure Function URL" + '/invoice/submit', Content, ResponseMessage);
 
         if not Success then begin
@@ -62,6 +55,10 @@ codeunit 50201 "KPHG KSeF Management"
         JsonResponse.ReadFrom(ResponseText);
 
         if JsonResponse.Get('success', JsonToken) and JsonToken.AsValue().AsBoolean() then begin
+            SalesInvHeader."KPHG KSeF Status" := SalesInvHeader."KPHG KSeF Status"::Sent;
+            SalesInvHeader."KPHG KSeF Submission DT" := CurrentDateTime();
+            SalesInvHeader."KPHG KSeF Error Message" := '';
+
             if JsonResponse.Get('elementReferenceNumber', JsonToken) then
                 SalesInvHeader."KPHG KSeF Element Ref." := CopyStr(JsonToken.AsValue().AsText(), 1, 100);
 
@@ -71,7 +68,6 @@ codeunit 50201 "KPHG KSeF Management"
                 SalesInvHeader."KPHG KSeF Acceptance DT" := CurrentDateTime();
             end;
 
-            SalesInvHeader."KPHG KSeF Error Message" := '';
             SalesInvHeader.Modify(true);
             Message('Invoice %1 submitted to KSeF successfully.', SalesInvHeader."No.");
         end else begin
