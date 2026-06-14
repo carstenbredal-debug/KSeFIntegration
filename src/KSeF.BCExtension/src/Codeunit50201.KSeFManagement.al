@@ -102,6 +102,174 @@ codeunit 50201 "KPHG KSeF Management"
         end;
     end;
 
+    procedure AutoSendInvoiceToKSeF(var SalesInvHeader: Record "Sales Invoice Header")
+    var
+        Setup: Record "KPHG KSeF Setup";
+        Client: HttpClient;
+        Content: HttpContent;
+        Headers: HttpHeaders;
+        ResponseMessage: HttpResponseMessage;
+        RequestBody: Text;
+        ResponseText: Text;
+        TextValue: Text;
+        JsonResponse: JsonObject;
+        Success: Boolean;
+    begin
+        if not SalesInvHeader."KPHG KSeF Required" then
+            exit;
+
+        if SalesInvHeader."KPHG KSeF Status" = SalesInvHeader."KPHG KSeF Status"::Accepted then
+            exit;
+
+        if not Setup.Get() then
+            exit;
+        if Setup."Azure Function URL" = '' then
+            exit;
+
+        RequestBody := BuildInvoiceJson(SalesInvHeader);
+
+        Content.WriteFrom(RequestBody);
+        Content.GetHeaders(Headers);
+        Headers.Remove('Content-Type');
+        Headers.Add('Content-Type', 'application/json');
+
+        Client.DefaultRequestHeaders().Add('x-functions-key', Setup."Azure Function Key");
+
+        SalesInvHeader."KPHG KSeF Status" := SalesInvHeader."KPHG KSeF Status"::Processing;
+        SalesInvHeader."KPHG KSeF Error Message" := '';
+        SalesInvHeader.Modify(true);
+        Commit();
+
+        Success := Client.Post(Setup."Azure Function URL" + '/invoice/submit', Content, ResponseMessage);
+
+        if not Success then begin
+            SalesInvHeader."KPHG KSeF Status" := SalesInvHeader."KPHG KSeF Status"::Error;
+            SalesInvHeader."KPHG KSeF Error Message" := 'Auto-send failed: HTTP request failed.';
+            SalesInvHeader.Modify(true);
+            exit;
+        end;
+
+        ResponseMessage.Content().ReadAs(ResponseText);
+        JsonResponse.ReadFrom(ResponseText);
+
+        if not TryGetJsonText(JsonResponse, 'success', TextValue) then
+            TextValue := '';
+
+        if TextValue = 'true' then begin
+            SalesInvHeader."KPHG KSeF Status" := SalesInvHeader."KPHG KSeF Status"::Sent;
+            SalesInvHeader."KPHG KSeF Submission DT" := CurrentDateTime();
+            SalesInvHeader."KPHG KSeF Error Message" := '';
+
+            if TryGetJsonText(JsonResponse, 'elementReferenceNumber', TextValue) then
+                SalesInvHeader."KPHG KSeF Element Ref." := CopyStr(TextValue, 1, 100);
+
+            if TryGetJsonText(JsonResponse, 'sessionReferenceNumber', TextValue) then
+                SalesInvHeader."KPHG KSeF Session Ref." := CopyStr(TextValue, 1, 100);
+
+            if TryGetJsonText(JsonResponse, 'kSeFReferenceNumber', TextValue) then begin
+                SalesInvHeader."KPHG KSeF Number" := CopyStr(TextValue, 1, 100);
+                SalesInvHeader."KPHG KSeF Status" := SalesInvHeader."KPHG KSeF Status"::Accepted;
+                SalesInvHeader."KPHG KSeF Acceptance DT" := CurrentDateTime();
+            end;
+
+            if TryGetJsonText(JsonResponse, 'qrVerificationUrl', TextValue) then
+                SalesInvHeader."KPHG KSeF QR Reference" := CopyStr(TextValue, 1, 250);
+
+            SalesInvHeader.Modify(true);
+        end else begin
+            SalesInvHeader."KPHG KSeF Status" := SalesInvHeader."KPHG KSeF Status"::Error;
+            if TryGetJsonText(JsonResponse, 'error', TextValue) then
+                SalesInvHeader."KPHG KSeF Error Message" := CopyStr('Auto-send: ' + FormatErrorMessage(TextValue), 1, 250)
+            else
+                SalesInvHeader."KPHG KSeF Error Message" := 'Auto-send failed: Unknown error.';
+            SalesInvHeader.Modify(true);
+        end;
+    end;
+
+    procedure AutoSendCrMemoToKSeF(var SalesCrMemoHeader: Record "Sales Cr.Memo Header")
+    var
+        Setup: Record "KPHG KSeF Setup";
+        Client: HttpClient;
+        Content: HttpContent;
+        Headers: HttpHeaders;
+        ResponseMessage: HttpResponseMessage;
+        RequestBody: Text;
+        ResponseText: Text;
+        TextValue: Text;
+        JsonResponse: JsonObject;
+        Success: Boolean;
+    begin
+        if not SalesCrMemoHeader."KPHG KSeF Required" then
+            exit;
+
+        if SalesCrMemoHeader."KPHG KSeF Status" = SalesCrMemoHeader."KPHG KSeF Status"::Accepted then
+            exit;
+
+        if not Setup.Get() then
+            exit;
+        if Setup."Azure Function URL" = '' then
+            exit;
+
+        RequestBody := BuildCrMemoJson(SalesCrMemoHeader);
+
+        Content.WriteFrom(RequestBody);
+        Content.GetHeaders(Headers);
+        Headers.Remove('Content-Type');
+        Headers.Add('Content-Type', 'application/json');
+
+        Client.DefaultRequestHeaders().Add('x-functions-key', Setup."Azure Function Key");
+
+        SalesCrMemoHeader."KPHG KSeF Status" := SalesCrMemoHeader."KPHG KSeF Status"::Processing;
+        SalesCrMemoHeader."KPHG KSeF Error Message" := '';
+        SalesCrMemoHeader.Modify(true);
+        Commit();
+
+        Success := Client.Post(Setup."Azure Function URL" + '/invoice/submit', Content, ResponseMessage);
+
+        if not Success then begin
+            SalesCrMemoHeader."KPHG KSeF Status" := SalesCrMemoHeader."KPHG KSeF Status"::Error;
+            SalesCrMemoHeader."KPHG KSeF Error Message" := 'Auto-send failed: HTTP request failed.';
+            SalesCrMemoHeader.Modify(true);
+            exit;
+        end;
+
+        ResponseMessage.Content().ReadAs(ResponseText);
+        JsonResponse.ReadFrom(ResponseText);
+
+        if not TryGetJsonText(JsonResponse, 'success', TextValue) then
+            TextValue := '';
+
+        if TextValue = 'true' then begin
+            SalesCrMemoHeader."KPHG KSeF Status" := SalesCrMemoHeader."KPHG KSeF Status"::Sent;
+            SalesCrMemoHeader."KPHG KSeF Submission DT" := CurrentDateTime();
+            SalesCrMemoHeader."KPHG KSeF Error Message" := '';
+
+            if TryGetJsonText(JsonResponse, 'elementReferenceNumber', TextValue) then
+                SalesCrMemoHeader."KPHG KSeF Element Ref." := CopyStr(TextValue, 1, 100);
+
+            if TryGetJsonText(JsonResponse, 'sessionReferenceNumber', TextValue) then
+                SalesCrMemoHeader."KPHG KSeF Session Ref." := CopyStr(TextValue, 1, 100);
+
+            if TryGetJsonText(JsonResponse, 'kSeFReferenceNumber', TextValue) then begin
+                SalesCrMemoHeader."KPHG KSeF Number" := CopyStr(TextValue, 1, 100);
+                SalesCrMemoHeader."KPHG KSeF Status" := SalesCrMemoHeader."KPHG KSeF Status"::Accepted;
+                SalesCrMemoHeader."KPHG KSeF Acceptance DT" := CurrentDateTime();
+            end;
+
+            if TryGetJsonText(JsonResponse, 'qrVerificationUrl', TextValue) then
+                SalesCrMemoHeader."KPHG KSeF QR Reference" := CopyStr(TextValue, 1, 250);
+
+            SalesCrMemoHeader.Modify(true);
+        end else begin
+            SalesCrMemoHeader."KPHG KSeF Status" := SalesCrMemoHeader."KPHG KSeF Status"::Error;
+            if TryGetJsonText(JsonResponse, 'error', TextValue) then
+                SalesCrMemoHeader."KPHG KSeF Error Message" := CopyStr('Auto-send: ' + FormatErrorMessage(TextValue), 1, 250)
+            else
+                SalesCrMemoHeader."KPHG KSeF Error Message" := 'Auto-send failed: Unknown error.';
+            SalesCrMemoHeader.Modify(true);
+        end;
+    end;
+
     procedure CheckStatus(var SalesInvHeader: Record "Sales Invoice Header")
     var
         Setup: Record "KPHG KSeF Setup";

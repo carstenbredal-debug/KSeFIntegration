@@ -69,16 +69,44 @@ public class InvoiceFunctions
             var sendResult = await _ksef.SendInvoiceAsync(xml, session.SessionToken);
             _logger.LogInformation("Invoice sent, ref: {Ref}", sendResult.ElementReferenceNumber);
 
-            // 4. Terminate session
+            // 4. Auto-poll for KSeF acceptance (up to 3 attempts, 3s apart)
+            string? ksefNumber = null;
+            for (int attempt = 0; attempt < 3; attempt++)
+            {
+                await Task.Delay(3000);
+                try
+                {
+                    var status = await _ksef.GetInvoiceStatusBySessionAsync(
+                        session.SessionReferenceNumber, sendResult.ElementReferenceNumber, session.SessionToken);
+                    if (status.ProcessingCode == 200 && !string.IsNullOrEmpty(status.KSeFReferenceNumber))
+                    {
+                        ksefNumber = status.KSeFReferenceNumber;
+                        _logger.LogInformation("KSeF accepted on attempt {Attempt}: {Number}", attempt + 1, ksefNumber);
+                        break;
+                    }
+                    _logger.LogInformation("KSeF status poll attempt {Attempt}: code={Code}", attempt + 1, status.ProcessingCode);
+                }
+                catch (Exception pollEx)
+                {
+                    _logger.LogWarning(pollEx, "Status poll attempt {Attempt} failed", attempt + 1);
+                }
+            }
+
+            // 5. Terminate session
             await _ksef.TerminateSessionAsync(session.SessionToken);
+
+            var qrUrl = !string.IsNullOrEmpty(ksefNumber)
+                ? $"{_ksef.BaseUrl.Replace("/v2", "")}/web/verify/{ksefNumber}/{xmlHash}"
+                : $"{_ksef.BaseUrl.Replace("/v2", "")}/web/verify/{sendResult.ElementReferenceNumber}/{xmlHash}";
 
             return await CreateResponse(req, HttpStatusCode.OK, new SubmitResult
             {
                 Success = true,
                 ElementReferenceNumber = sendResult.ElementReferenceNumber,
+                KSeFReferenceNumber = ksefNumber,
                 SessionToken = session.SessionToken,
                 SessionReferenceNumber = session.SessionReferenceNumber,
-                QRVerificationUrl = $"{_ksef.BaseUrl.Replace("/v2", "")}/web/verify/{sendResult.ElementReferenceNumber}/{xmlHash}"
+                QRVerificationUrl = qrUrl
             });
         }
         catch (Exception ex)

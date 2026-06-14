@@ -77,4 +77,22 @@ codeunit 50200 "KPHG Posting Subscribers"
         SalesCrMemoLine."KPHG PKWiU" := SalesLine."KPHG PKWiU";
         SalesCrMemoLine.Modify();
     end;
+
+    [EventSubscriber(ObjectType::Codeunit, Codeunit::"Sales-Post", 'OnAfterPostSalesDoc', '', false, false)]
+    local procedure AutoSendToKSeFAfterPost(var SalesHeader: Record "Sales Header"; var GenJnlPostLine: Codeunit "Gen. Jnl.-Post Line"; SalesShptHdrNo: Code[20]; RetRcpHdrNo: Code[20]; SalesInvHdrNo: Code[20]; SalesCrMemoHdrNo: Code[20])
+    var
+        KSeFMgmt: Codeunit "KPHG KSeF Management";
+        SalesInvHeader: Record "Sales Invoice Header";
+        SalesCrMemoHeader: Record "Sales Cr.Memo Header";
+    begin
+        if SalesInvHdrNo <> '' then
+            if SalesInvHeader.Get(SalesInvHdrNo) then
+                if SalesInvHeader."KPHG KSeF Required" then
+                    KSeFMgmt.AutoSendInvoiceToKSeF(SalesInvHeader);
+
+        if SalesCrMemoHdrNo <> '' then
+            if SalesCrMemoHeader.Get(SalesCrMemoHdrNo) then
+                if SalesCrMemoHeader."KPHG KSeF Required" then
+                    KSeFMgmt.AutoSendCrMemoToKSeF(SalesCrMemoHeader);
+    end;
 }
