@@ -212,7 +212,8 @@ public class KSeFApiClient
         {
             formCode = new
             {
-                systemCode = "FA (2)",
+                // FA(3) is mandatory from 2026-02-01. Must match the schema emitted by InvoiceXmlBuilder.
+                systemCode = "FA (3)",
                 schemaVersion = "1-0E",
                 value = "FA"
             },

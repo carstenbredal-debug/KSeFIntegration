@@ -18,6 +18,7 @@ public class InvoiceFunctions
 {
     private readonly KSeFApiClient _ksef;
     private readonly InvoiceXmlBuilder _xmlBuilder;
+    private readonly FaValidator _validator;
     private readonly ILogger<InvoiceFunctions> _logger;
 
     private static readonly JsonSerializerOptions JsonOpts = new()
@@ -26,10 +27,11 @@ public class InvoiceFunctions
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
 
-    public InvoiceFunctions(KSeFApiClient ksef, InvoiceXmlBuilder xmlBuilder, ILogger<InvoiceFunctions> logger)
+    public InvoiceFunctions(KSeFApiClient ksef, InvoiceXmlBuilder xmlBuilder, FaValidator validator, ILogger<InvoiceFunctions> logger)
     {
         _ksef = ksef;
         _xmlBuilder = xmlBuilder;
+        _validator = validator;
         _logger = logger;
     }
 
@@ -54,9 +56,23 @@ public class InvoiceFunctions
                 return await CreateResponse(req, HttpStatusCode.BadRequest,
                     new SubmitResult { Success = false, Error = "Invalid invoice data" });
 
-            // 1. Build FA(2) XML
+            // 1. Build FA(3) XML
             var xml = _xmlBuilder.Build(invoice);
-            _logger.LogInformation("Generated XML for invoice {Number}", invoice.InvoiceNumber);
+            _logger.LogInformation("Generated FA(3) XML for invoice {Number}", invoice.InvoiceNumber);
+
+            // 1b. Validate against the official FA(3) XSD BEFORE sending — never submit an
+            // invalid document to KSeF (it would be rejected, and during 2026 silently so).
+            var validation = _validator.Validate(xml);
+            if (!validation.IsValid)
+            {
+                _logger.LogError("FA(3) schema validation failed for invoice {Number}: {Errors}",
+                    invoice.InvoiceNumber, string.Join(" | ", validation.Errors));
+                return await CreateResponse(req, HttpStatusCode.BadRequest, new SubmitResult
+                {
+                    Success = false,
+                    Error = "FA(3) schema validation failed: " + string.Join(" | ", validation.Errors)
+                });
+            }
 
             // 2. Init KSeF session
             var session = await _ksef.InitSessionAsync(invoice.Seller.NIP);
@@ -176,7 +192,8 @@ public class InvoiceFunctions
     /// Generate invoice XML preview without sending to KSeF.
     /// POST /api/invoice/preview
     /// Body: InvoiceData JSON
-    /// Returns: FA(2) XML string
+    /// Returns: FA(3) XML string. Response headers carry the schema-validation result
+    /// (X-FA3-Valid; X-FA3-Validation-Error-Count when invalid — full errors are logged).
     /// </summary>
     [Function("PreviewInvoiceXml")]
     public async Task<HttpResponseData> PreviewInvoiceXml(
@@ -198,8 +215,16 @@ public class InvoiceFunctions
 
             var xml = _xmlBuilder.Build(invoice);
 
+            var validation = _validator.Validate(xml);
+            if (!validation.IsValid)
+                _logger.LogWarning("FA(3) preview for invoice {Number} is not schema-valid: {Errors}",
+                    invoice.InvoiceNumber, string.Join(" | ", validation.Errors));
+
             var response = req.CreateResponse(HttpStatusCode.OK);
             response.Headers.Add("Content-Type", "application/xml");
+            response.Headers.Add("X-FA3-Valid", validation.IsValid ? "true" : "false");
+            if (!validation.IsValid)
+                response.Headers.Add("X-FA3-Validation-Error-Count", validation.Errors.Count.ToString());
             await response.WriteStringAsync(xml);
             return response;
         }

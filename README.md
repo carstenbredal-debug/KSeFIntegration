@@ -51,6 +51,7 @@ func start
 
 ## Invoice XML Schema
 
-Uses FA(2) schema v1-0E:
-- Namespace: `http://crd.gov.pl/wzor/2023/06/29/12648/`
-- Required sections: Naglowek (Header), Podmiot1 (Seller), Podmiot2 (Buyer), Fa (Invoice body with lines)
+Uses FA(3) schema v1-0E (mandatory for all KSeF submissions from 2026-02-01; FA(2) is no longer accepted):
+- Namespace: `http://crd.gov.pl/wzor/2025/06/25/13775/`
+- `KodFormularza` systemCode `FA (3)`, `WariantFormularza` `3`
+- Required sections: Naglowek (Header), Podmiot1 (Seller), Podmiot2 (Buyer — incl. mandatory `JST` and `GV` flags), Fa (Invoice body with lines)

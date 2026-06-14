@@ -7,12 +7,13 @@ using KSeF.Functions.Models;
 namespace KSeF.Functions.Services;
 
 /// <summary>
-/// Builds KSeF-compliant FA(2) XML invoice documents.
-/// Schema: http://crd.gov.pl/wzor/2023/06/29/12648/
+/// Builds KSeF-compliant FA(3) XML invoice documents.
+/// Schema: http://crd.gov.pl/wzor/2025/06/25/13775/
+/// FA(3) is mandatory for all KSeF submissions from 2026-02-01; FA(2) is no longer accepted.
 /// </summary>
 public class InvoiceXmlBuilder
 {
-    private static readonly XNamespace Ns = "http://crd.gov.pl/wzor/2023/06/29/12648/";
+    private static readonly XNamespace Ns = "http://crd.gov.pl/wzor/2025/06/25/13775/";
     private static readonly XNamespace Xsi = "http://www.w3.org/2001/XMLSchema-instance";
 
     public string Build(InvoiceData invoice)
@@ -37,7 +38,7 @@ public class InvoiceXmlBuilder
     {
         var faktura = new XElement(Ns + "Faktura",
             new XAttribute(XNamespace.Xmlns + "xsi", Xsi),
-            new XAttribute(Xsi + "schemaLocation", "http://crd.gov.pl/wzor/2023/06/29/12648/ http://crd.gov.pl/wzor/2023/06/29/12648/schemat.xsd"),
+            new XAttribute(Xsi + "schemaLocation", "http://crd.gov.pl/wzor/2025/06/25/13775/ http://crd.gov.pl/wzor/2025/06/25/13775/schemat.xsd"),
 
             // Naglowek (Header)
             BuildNaglowek(inv),
@@ -59,11 +60,11 @@ public class InvoiceXmlBuilder
     {
         return new XElement(Ns + "Naglowek",
             new XElement(Ns + "KodFormularza",
-                new XAttribute("kodSystemowy", "FA (2)"),
+                new XAttribute("kodSystemowy", "FA (3)"),
                 new XAttribute("wersjaSchemy", "1-0E"),
                 "FA"),
-            new XElement(Ns + "WariantFormularza", 2),
-            new XElement(Ns + "DataWytworzeniaFa", DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss")),
+            new XElement(Ns + "WariantFormularza", 3),
+            new XElement(Ns + "DataWytworzeniaFa", DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ss", CultureInfo.InvariantCulture)),
             new XElement(Ns + "SystemInfo", "KSeFIntegration/1.0")
         );
     }
@@ -126,7 +127,13 @@ public class InvoiceXmlBuilder
                 new XElement(Ns + "KodKraju", countryCode),
                 new XElement(Ns + "AdresL1", FormatAddress(buyer.Street, buyer.BuildingNumber, buyer.ApartmentNumber)),
                 new XElement(Ns + "AdresL2", $"{buyer.PostalCode} {buyer.City}")
-            )
+            ),
+            // FA(3): JST and GV are mandatory in Podmiot2 and must follow Adres.
+            // "2" = not applicable (buyer is neither a local-government unit (JST)
+            // nor a VAT-group member (GV)). If you ever invoice JST or VAT-group
+            // buyers, these must be driven from buyer data instead of hardcoded.
+            new XElement(Ns + "JST", 2),
+            new XElement(Ns + "GV", 2)
         );
     }
 
