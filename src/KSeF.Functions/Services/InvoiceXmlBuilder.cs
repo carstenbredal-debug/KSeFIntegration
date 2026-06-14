@@ -92,6 +92,57 @@ public class InvoiceXmlBuilder
         "PT", "RO", "SK", "SI", "ES", "SE"
     };
 
+    private enum ZeroRateKind { Domestic, IntraEu, Export }
+
+    // FA(3) zero-rate classification from the buyer's country: PL -> domestic (0 KR),
+    // other EU -> intra-EU supply (0 WDT), rest -> export (0 EX).
+    private static ZeroRateKind ClassifyZeroRate(BuyerData buyer)
+    {
+        var cc = string.IsNullOrWhiteSpace(buyer.CountryCode) ? "PL" : buyer.CountryCode.Trim().ToUpperInvariant();
+        if (cc == "PL") return ZeroRateKind.Domestic;
+        return EuCountryCodes.Contains(cc) ? ZeroRateKind.IntraEu : ZeroRateKind.Export;
+    }
+
+    // FA(3) tax categories. The line VAT% cannot distinguish these (0% / WDT / export /
+    // exempt / reverse-charge all have VAT% = 0), so BC supplies the category per line.
+    private enum TaxCat { Standard, ZeroDomestic, ZeroIntraEu, ZeroExport, Exempt, ReverseChargeEu }
+
+    // Resolve a line's category from the BC-supplied code, falling back to VatRate + buyer.
+    private static TaxCat ResolveCategory(InvoiceLineData line, ZeroRateKind zeroKind)
+    {
+        switch (line.TaxCategory?.Trim().ToUpperInvariant())
+        {
+            case "STD": return TaxCat.Standard;
+            case "KR": return TaxCat.ZeroDomestic;
+            case "WDT": return TaxCat.ZeroIntraEu;
+            case "EXP":
+            case "EX": return TaxCat.ZeroExport;
+            case "ZW": return TaxCat.Exempt;
+            case "OO": return TaxCat.ReverseChargeEu;
+            default:
+                // No (or unknown) category supplied: infer from rate + buyer country.
+                if (line.VatRate > 0m) return TaxCat.Standard;
+                return zeroKind switch
+                {
+                    ZeroRateKind.IntraEu => TaxCat.ZeroIntraEu,
+                    ZeroRateKind.Export => TaxCat.ZeroExport,
+                    _ => TaxCat.ZeroDomestic
+                };
+        }
+    }
+
+    // Line-level P_12 code for a category, matching its summary bucket.
+    private static string LineVatCode(TaxCat cat, decimal rate) => cat switch
+    {
+        TaxCat.Standard => FormatVatRate(rate),
+        TaxCat.ZeroDomestic => "0 KR",
+        TaxCat.ZeroIntraEu => "0 WDT",
+        TaxCat.ZeroExport => "0 EX",
+        TaxCat.Exempt => "zw",
+        TaxCat.ReverseChargeEu => "oo",
+        _ => FormatVatRate(rate)
+    };
+
     private XElement BuildPodmiot2(BuyerData buyer)
     {
         var countryCode = string.IsNullOrWhiteSpace(buyer.CountryCode) ? "PL" : buyer.CountryCode.Trim().ToUpperInvariant();
@@ -141,11 +192,16 @@ public class InvoiceXmlBuilder
     {
         var currencyCode = string.IsNullOrWhiteSpace(inv.CurrencyCode) ? "PLN" : inv.CurrencyCode;
         var isCreditMemo = inv.IsCreditMemo;
+        var zeroKind = ClassifyZeroRate(inv.Buyer);
 
-        // Credit memos have negative amounts — use absolute values for XML totals
-        var totalNet = inv.Lines.Sum(l => Math.Abs(l.NetAmount));
-        var totalVat23 = inv.Lines.Where(l => l.VatRate == 23).Sum(l => Math.Abs(l.VatAmount));
-        var totalGross = inv.Lines.Sum(l => Math.Abs(l.GrossAmount));
+        // A credit note (KOR) is a value correction: its totals carry the *difference*
+        // vs the original (negative for a return/partial credit). Regular invoices are
+        // positive. BC stores both as positive line amounts, so apply the sign here.
+        var sign = isCreditMemo ? -1m : 1m;
+        var totalGross = inv.Lines.Sum(l => Math.Abs(l.GrossAmount)) * sign;
+
+        // Resolve each line's FA(3) tax category once (BC-supplied, or inferred).
+        var resolved = inv.Lines.Select(l => (line: l, cat: ResolveCategory(l, zeroKind))).ToList();
 
         var fa = new XElement(Ns + "Fa",
             new XElement(Ns + "KodWaluty", currencyCode),
@@ -154,27 +210,66 @@ public class InvoiceXmlBuilder
             new XElement(Ns + "P_6", inv.SaleDate?.ToString("yyyy-MM-dd") ?? inv.IssueDate.ToString("yyyy-MM-dd"))
         );
 
-        if (isCreditMemo)
+        // Net/VAT sales totals per FA(3) category, emitted in schema order. Same shape for
+        // invoices and corrections (correction amounts are negative differences):
+        //   standard: 23% -> P_13_1/P_14_1, 8% -> P_13_2/P_14_2, 5% -> P_13_3/P_14_3
+        //   0% domestic -> P_13_6_1, intra-EU WDT -> P_13_6_2, export -> P_13_6_3
+        //   exempt (ZW) -> P_13_7, intra-EU reverse-charge services -> P_13_9
+        // Not modelled: P_13_8 (other services outside PL) and P_13_10 (domestic reverse-charge).
+        void AddStdPair(string netField, string vatField, decimal rate)
         {
-            fa.Add(new XElement(Ns + "P_13_1", "0.00"));
-            fa.Add(new XElement(Ns + "P_14_1", "0.00"));
-            fa.Add(new XElement(Ns + "P_15", "0.00"));
+            var sel = resolved.Where(r => r.cat == TaxCat.Standard && r.line.VatRate == rate).ToList();
+            var net = sel.Sum(r => Math.Abs(r.line.NetAmount)) * sign;
+            var vat = sel.Sum(r => Math.Abs(r.line.VatAmount)) * sign;
+            if (net == 0m && vat == 0m) return;
+            fa.Add(new XElement(Ns + netField, net.ToString("F2", CultureInfo.InvariantCulture)));
+            fa.Add(new XElement(Ns + vatField, vat.ToString("F2", CultureInfo.InvariantCulture)));
+        }
+        void AddNet(string netField, TaxCat cat)
+        {
+            var net = resolved.Where(r => r.cat == cat).Sum(r => Math.Abs(r.line.NetAmount)) * sign;
+            if (net != 0m)
+                fa.Add(new XElement(Ns + netField, net.ToString("F2", CultureInfo.InvariantCulture)));
+        }
+
+        AddStdPair("P_13_1", "P_14_1", 23m);
+        AddStdPair("P_13_2", "P_14_2", 8m);
+        AddStdPair("P_13_3", "P_14_3", 5m);
+        AddNet("P_13_6_1", TaxCat.ZeroDomestic);
+        AddNet("P_13_6_2", TaxCat.ZeroIntraEu);
+        AddNet("P_13_6_3", TaxCat.ZeroExport);
+        AddNet("P_13_7", TaxCat.Exempt);
+        AddNet("P_13_9", TaxCat.ReverseChargeEu);
+
+        fa.Add(new XElement(Ns + "P_15", totalGross.ToString("F2", CultureInfo.InvariantCulture)));
+
+        // Adnotacje markers: P_18 = "odwrotne obciążenie" (reverse-charge present);
+        // Zwolnienie = exemption flag + statutory basis (P_19A) when any line is exempt.
+        var hasReverseCharge = resolved.Any(r => r.cat == TaxCat.ReverseChargeEu);
+        var hasExempt = resolved.Any(r => r.cat == TaxCat.Exempt);
+
+        XElement zwolnienie;
+        if (hasExempt)
+        {
+            var basis = inv.ExemptionLegalBasis?.Trim();
+            if (string.IsNullOrEmpty(basis))
+                throw new InvalidOperationException(
+                    "Invoice has an exempt (ZW) line but ExemptionLegalBasis (FA(3) P_19A) is not set.");
+            zwolnienie = new XElement(Ns + "Zwolnienie",
+                new XElement(Ns + "P_19", 1),
+                new XElement(Ns + "P_19A", basis));
         }
         else
         {
-            fa.Add(new XElement(Ns + "P_13_1", totalNet.ToString("F2", CultureInfo.InvariantCulture)));
-            fa.Add(new XElement(Ns + "P_14_1", totalVat23.ToString("F2", CultureInfo.InvariantCulture)));
-            fa.Add(new XElement(Ns + "P_15", totalGross.ToString("F2", CultureInfo.InvariantCulture)));
+            zwolnienie = new XElement(Ns + "Zwolnienie", new XElement(Ns + "P_19N", 1));
         }
 
         fa.Add(new XElement(Ns + "Adnotacje",
             new XElement(Ns + "P_16", 2),
             new XElement(Ns + "P_17", 2),
-            new XElement(Ns + "P_18", 2),
+            new XElement(Ns + "P_18", hasReverseCharge ? 1 : 2),
             new XElement(Ns + "P_18A", 2),
-            new XElement(Ns + "Zwolnienie",
-                new XElement(Ns + "P_19N", 1)
-            ),
+            zwolnienie,
             new XElement(Ns + "NoweSrodkiTransportu",
                 new XElement(Ns + "P_22N", 1)
             ),
@@ -213,22 +308,23 @@ public class InvoiceXmlBuilder
                 daneFaKorygowanej.Add(new XElement(Ns + "NrKSeFN", 1));
             }
             fa.Add(daneFaKorygowanej);
-
-            // P_15ZK — corrected gross total (after DaneFaKorygowanej)
-            fa.Add(new XElement(Ns + "P_15ZK", "0.00"));
+            // P_15ZK is only for advance-invoice (zaliczkowe) corrections, which this
+            // system does not issue, so it is intentionally omitted for value corrections.
         }
 
-        // Invoice lines
-        foreach (var line in inv.Lines)
+        // Invoice/correction lines. For a correction the quantity and net amount are
+        // negative, mirroring the summary difference (supports partial credits).
+        foreach (var (line, cat) in resolved)
         {
+            var vatCode = LineVatCode(cat, line.VatRate);
             var lineElement = new XElement(Ns + "FaWiersz",
                 new XElement(Ns + "NrWierszaFa", line.LineNumber),
                 new XElement(Ns + "P_7", line.Description),
                 new XElement(Ns + "P_8A", line.UnitOfMeasure),
-                new XElement(Ns + "P_8B", Math.Abs(line.Quantity).ToString("F4", CultureInfo.InvariantCulture)),
+                new XElement(Ns + "P_8B", (Math.Abs(line.Quantity) * sign).ToString("F4", CultureInfo.InvariantCulture)),
                 new XElement(Ns + "P_9A", Math.Abs(line.UnitPrice).ToString("F2", CultureInfo.InvariantCulture)),
-                new XElement(Ns + "P_11", Math.Abs(line.NetAmount).ToString("F2", CultureInfo.InvariantCulture)),
-                new XElement(Ns + "P_12", FormatVatRate(line.VatRate))
+                new XElement(Ns + "P_11", (Math.Abs(line.NetAmount) * sign).ToString("F2", CultureInfo.InvariantCulture)),
+                new XElement(Ns + "P_12", vatCode)
             );
 
             fa.Add(lineElement);
@@ -271,7 +367,10 @@ public class InvoiceXmlBuilder
         23 => "23",
         8 => "8",
         5 => "5",
-        0 => "0",
+        // FA(3) replaced bare "0" with classified zero-rate codes: "0 KR" (domestic),
+        // "0 WDT" (intra-EU), "0 EX" (export). Defaulting to domestic to match the
+        // P_13_6_1 summary bucket; EU/export sales need explicit classification.
+        0 => "0 KR",
         _ => rate.ToString("F0", CultureInfo.InvariantCulture)
     };
 

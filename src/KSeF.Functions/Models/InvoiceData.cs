@@ -32,6 +32,10 @@ public class InvoiceData
     public string? OriginalInvoiceNumber { get; set; }
     public DateTime? OriginalInvoiceDate { get; set; }
     public string? CorrectionReason { get; set; }
+
+    // FA(3) statutory legal basis for VAT exemption (P_19A), required when any line
+    // is exempt (TaxCategory = "ZW"). Supplied by BC per invoice.
+    public string? ExemptionLegalBasis { get; set; }
 }
 
 public class SellerData
@@ -69,4 +73,12 @@ public class InvoiceLineData
     public decimal VatRate { get; set; } = 23;
     public decimal VatAmount { get; set; }
     public decimal GrossAmount { get; set; }
+
+    // FA(3) tax category, supplied by BC (the VAT% alone cannot distinguish 0% / WDT /
+    // export / exempt / reverse-charge). Recognised values:
+    //   "STD" standard rate (use VatRate)   "KR"  0% domestic
+    //   "WDT" 0% intra-EU goods             "EXP" 0% export
+    //   "ZW"  VAT-exempt                    "OO"  intra-EU reverse-charge services
+    // When null/empty, the category is inferred from VatRate + buyer country (back-compat).
+    public string? TaxCategory { get; set; }
 }
