@@ -61,7 +61,7 @@ public class JpkV7MBuilder
                 "JPK_VAT"
             ),
             new XElement(Ns + "WariantFormularza", 3),
-            new XElement(Ns + "DataWytworzeniaJPK", DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ")),
+            new XElement(Ns + "DataWytworzeniaJPK", DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture)),
             new XElement(Ns + "NazwaSystemu", "KPHG KSeF Integration"),
             new XElement(Ns + "CelZlozenia",
                 new XAttribute("poz", "P_7"),
