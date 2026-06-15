@@ -89,57 +89,79 @@ public class JpkV7MBuilder
             osoba);
     }
 
+    // Net-base boxes summed into P_37; output-VAT boxes summed into P_38 (per the schema).
+    private static readonly int[] NetBaseBoxes = { 10, 11, 13, 15, 17, 19, 21, 22 };
+    private static readonly int[] OutputVatBoxes = { 16, 18, 20 };
+
+    // Expand a sale record into its per-category VAT components (single fallback for back-compat).
+    private static IEnumerable<SalesVatBreakdown> Components(SalesRecordData rec)
+    {
+        if (rec.Vat is { Count: > 0 })
+            return rec.Vat;
+        return new[]
+        {
+            new SalesVatBreakdown
+            {
+                Category = rec.VatAmount != 0m ? "STD" : "ZW",
+                NetAmount = rec.NetAmount,
+                VatAmount = rec.VatAmount
+            }
+        };
+    }
+
+    // Add a component's amounts to the K_/P_ box accumulator (box number -> signed amount).
+    // Category drives the box per the VAT Bus. Posting Group rules:
+    //   STD -> domestic rated (K_19/20, K_17/18, K_15/16 by rate);  ZW -> exempt (K_10);
+    //   OO  -> intra-EU reverse-charge (K_11 + K_12);                NP -> outside-scope (K_11).
+    private static void Accumulate(SalesVatBreakdown c, decimal sign, IDictionary<int, decimal> boxes)
+    {
+        void Add(int box, decimal v) { boxes.TryGetValue(box, out var cur); boxes[box] = cur + v; }
+        var net = Math.Abs(c.NetAmount);
+        var vat = Math.Abs(c.VatAmount);
+        switch (c.Category?.Trim().ToUpperInvariant())
+        {
+            case "ZW": Add(10, net * sign); break;
+            case "OO": Add(11, net * sign); Add(12, net * sign); break; // K_12 is a subset of K_11
+            case "NP": Add(11, net * sign); break;
+            default:
+                var rate = net != 0m ? Math.Round(vat / net * 100m, 0) : 0m;
+                if (rate >= 22m) { Add(19, net * sign); Add(20, vat * sign); }
+                else if (rate >= 7m) { Add(17, net * sign); Add(18, vat * sign); }
+                else if (rate >= 4m) { Add(15, net * sign); Add(16, vat * sign); }
+                else { Add(13, net * sign); } // 0% domestic
+                break;
+        }
+    }
+
     private (XElement deklaracja, decimal taxDue) BuildDeklaracja(JpkV7MRequest req)
     {
-        // Calculate totals from sales records
-        decimal totalNet23 = 0, totalVat23 = 0;
-        decimal totalNet8 = 0, totalVat8 = 0;
-        decimal totalNet5 = 0, totalVat5 = 0;
-        decimal totalNet0 = 0;
-
+        var boxes = new SortedDictionary<int, decimal>();
         foreach (var rec in req.SalesRecords)
         {
-            var vatRate = rec.NetAmount != 0 ? Math.Round(rec.VatAmount / rec.NetAmount * 100, 0) : 0;
-            if (vatRate >= 22)
-            {
-                totalNet23 += rec.NetAmount;
-                totalVat23 += rec.VatAmount;
-            }
-            else if (vatRate >= 7)
-            {
-                totalNet8 += rec.NetAmount;
-                totalVat8 += rec.VatAmount;
-            }
-            else if (vatRate >= 4)
-            {
-                totalNet5 += rec.NetAmount;
-                totalVat5 += rec.VatAmount;
-            }
-            else
-            {
-                totalNet0 += rec.NetAmount;
-            }
+            var sign = rec.IsCreditMemo ? -1m : 1m;
+            foreach (var c in Components(rec)) Accumulate(c, sign, boxes);
         }
+        decimal Box(int n) { boxes.TryGetValue(n, out var v); return v; }
 
-        var totalTaxDue = totalVat23 + totalVat8 + totalVat5;
-        var totalNet = totalNet23 + totalNet8 + totalNet5 + totalNet0;
+        var totalNet = NetBaseBoxes.Sum(Box);      // P_37 (total base)
+        var totalTaxDue = OutputVatBoxes.Sum(Box); // P_38 (total output VAT)
 
         var pozycje = new XElement(Ns + "PozycjeSzczegolowe",
-            new XElement(Ns + "P_10", FmtInt(totalNet0)),
-            new XElement(Ns + "P_11", FmtInt(totalNet5)),
-            new XElement(Ns + "P_12", FmtInt(totalVat5)),
-            new XElement(Ns + "P_13", FmtInt(totalNet8)),
-            new XElement(Ns + "P_14", FmtInt(totalVat8)),
-            new XElement(Ns + "P_15", FmtInt(totalNet23)),
-            new XElement(Ns + "P_16", FmtInt(totalVat23)),
-            new XElement(Ns + "P_17", FmtInt(0)),
-            new XElement(Ns + "P_18", FmtInt(0)),
-            new XElement(Ns + "P_19", FmtInt(0)),
-            new XElement(Ns + "P_20", FmtInt(0)),
-            new XElement(Ns + "P_21", FmtInt(0)),
-            new XElement(Ns + "P_22", FmtInt(0)),
-            new XElement(Ns + "P_23", FmtInt(totalNet)),
-            new XElement(Ns + "P_24", FmtInt(totalTaxDue)),
+            new XElement(Ns + "P_10", FmtInt(Box(10))),
+            new XElement(Ns + "P_11", FmtInt(Box(11))),
+            new XElement(Ns + "P_12", FmtInt(Box(12))),
+            new XElement(Ns + "P_13", FmtInt(Box(13))),
+            new XElement(Ns + "P_14", FmtInt(0)),
+            new XElement(Ns + "P_15", FmtInt(Box(15))),
+            new XElement(Ns + "P_16", FmtInt(Box(16))),
+            new XElement(Ns + "P_17", FmtInt(Box(17))),
+            new XElement(Ns + "P_18", FmtInt(Box(18))),
+            new XElement(Ns + "P_19", FmtInt(Box(19))),
+            new XElement(Ns + "P_20", FmtInt(Box(20))),
+            new XElement(Ns + "P_21", FmtInt(Box(21))),
+            new XElement(Ns + "P_22", FmtInt(Box(22))),
+            new XElement(Ns + "P_23", FmtInt(0)),
+            new XElement(Ns + "P_24", FmtInt(0)),
             new XElement(Ns + "P_25", FmtInt(0)),
             new XElement(Ns + "P_26", FmtInt(0)),
             new XElement(Ns + "P_27", FmtInt(0)),
@@ -152,7 +174,7 @@ public class JpkV7MBuilder
             new XElement(Ns + "P_34", FmtInt(0)),
             new XElement(Ns + "P_35", FmtInt(0)),
             new XElement(Ns + "P_36", FmtInt(0)),
-            new XElement(Ns + "P_37", FmtInt(totalTaxDue)),
+            new XElement(Ns + "P_37", FmtInt(totalNet)),
             new XElement(Ns + "P_38", FmtInt(totalTaxDue)),
             new XElement(Ns + "P_39", FmtInt(0)),
             new XElement(Ns + "P_40", FmtInt(0)),
@@ -168,8 +190,8 @@ public class JpkV7MBuilder
             new XElement(Ns + "P_50", FmtInt(0)),
             new XElement(Ns + "P_51", FmtInt(totalTaxDue)),
             new XElement(Ns + "P_52", FmtInt(0)),
-            new XElement(Ns + "P_53", FmtInt(totalTaxDue)),
-            new XElement(Ns + "P_54", FmtInt(totalTaxDue)),
+            new XElement(Ns + "P_53", FmtInt(0)),
+            new XElement(Ns + "P_54", FmtInt(0)),
             // P_540/P_55/P_56/P_560/P_58 is a choice — pick one refund term
             new XElement(Ns + "P_540", 1),
             // P_59/P_60/P_61 optional group (credit to future obligations) — omitted
@@ -226,29 +248,19 @@ public class JpkV7MBuilder
             else
                 wiersz.Add(new XElement(Ns + "BFK", 1));
 
-            // VAT amounts by rate — simplified: put all in K_19 (net 23%) and K_20 (vat 23%)
-            var vatRate = rec.NetAmount != 0 ? Math.Round(rec.VatAmount / rec.NetAmount * 100, 0) : 0;
-            if (vatRate >= 22)
-            {
-                wiersz.Add(new XElement(Ns + "K_19", Fmt(rec.NetAmount)));
-                wiersz.Add(new XElement(Ns + "K_20", Fmt(rec.VatAmount)));
-            }
-            else if (vatRate >= 7)
-            {
-                wiersz.Add(new XElement(Ns + "K_17", Fmt(rec.NetAmount)));
-                wiersz.Add(new XElement(Ns + "K_18", Fmt(rec.VatAmount)));
-            }
-            else if (vatRate >= 4)
-            {
-                wiersz.Add(new XElement(Ns + "K_15", Fmt(rec.NetAmount)));
-                wiersz.Add(new XElement(Ns + "K_16", Fmt(rec.VatAmount)));
-            }
-            else
-            {
-                wiersz.Add(new XElement(Ns + "K_10", Fmt(rec.NetAmount)));
-            }
+            // K_ boxes per category component (one row may span several boxes for a mixed invoice),
+            // emitted in ascending (schema) order.
+            var sign = rec.IsCreditMemo ? -1m : 1m;
+            var boxes = new SortedDictionary<int, decimal>();
+            foreach (var c in Components(rec)) Accumulate(c, sign, boxes);
+            foreach (var kv in boxes)
+                if (kv.Value != 0m)
+                    wiersz.Add(new XElement(Ns + $"K_{kv.Key}", Fmt(kv.Value)));
 
-            totalOutputVat += rec.VatAmount;
+            boxes.TryGetValue(16, out var v16);
+            boxes.TryGetValue(18, out var v18);
+            boxes.TryGetValue(20, out var v20);
+            totalOutputVat += v16 + v18 + v20;
             ewidencja.Add(wiersz);
         }
 

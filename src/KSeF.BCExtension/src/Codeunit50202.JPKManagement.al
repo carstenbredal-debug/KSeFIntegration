@@ -224,6 +224,7 @@ codeunit 50202 "KPHG JPK Management"
                 SaleObj.Add('netAmount', CalcInvNetAmount(SalesInvHeader."No."));
                 SaleObj.Add('vatAmount', CalcInvVatAmount(SalesInvHeader."No."));
                 SaleObj.Add('grossAmount', CalcInvGrossAmount(SalesInvHeader."No."));
+                AddVatBreakdown(SaleObj, SalesInvHeader."No.", "Gen. Journal Document Type"::Invoice, SalesInvHeader."Posting Date");
 
                 SalesArray.Add(SaleObj);
             until SalesInvHeader.Next() = 0;
@@ -254,6 +255,7 @@ codeunit 50202 "KPHG JPK Management"
                 SaleObj.Add('netAmount', -CalcCrMemoNetAmount(SalesCrMemoHeader."No."));
                 SaleObj.Add('vatAmount', -CalcCrMemoVatAmount(SalesCrMemoHeader."No."));
                 SaleObj.Add('grossAmount', -CalcCrMemoGrossAmount(SalesCrMemoHeader."No."));
+                AddVatBreakdown(SaleObj, SalesCrMemoHeader."No.", "Gen. Journal Document Type"::"Credit Memo", SalesCrMemoHeader."Posting Date");
 
                 SalesArray.Add(SaleObj);
             until SalesCrMemoHeader.Next() = 0;
@@ -261,6 +263,67 @@ codeunit 50202 "KPHG JPK Management"
         JsonObj.Add('salesRecords', SalesArray);
 
         exit(Format(JsonObj));
+    end;
+
+    // JPK/FA(3) tax category from the VAT Bus. Posting Group (per the auction VAT setup):
+    //   EU -> intra-EU reverse-charge (OO), NONEU -> outside-scope (NP),
+    //   POLAND -> exempt (ZW) when a VAT Clause is set, otherwise domestic rated (STD).
+    local procedure JpkCategory(VATBusGroup: Code[20]; VATProdGroup: Code[20]): Text
+    var
+        VATPostingSetup: Record "VAT Posting Setup";
+    begin
+        case UpperCase(VATBusGroup) of
+            'EU':
+                exit('OO');
+            'NONEU':
+                exit('NP');
+        end;
+        if VATPostingSetup.Get(VATBusGroup, VATProdGroup) then
+            if VATPostingSetup."VAT Clause Code" <> '' then
+                exit('ZW');
+        exit('STD');
+    end;
+
+    // Emit the per-category VAT breakdown ('vat' array) for a posted document, summed from its
+    // VAT Entries (positive amounts; the Function applies the credit-memo sign).
+    local procedure AddVatBreakdown(var SaleObj: JsonObject; DocNo: Code[20]; DocType: Enum "Gen. Journal Document Type"; PostingDate: Date)
+    var
+        VATEntry: Record "VAT Entry";
+        NetByCat: Dictionary of [Text, Decimal];
+        VatByCat: Dictionary of [Text, Decimal];
+        VatArray: JsonArray;
+        VatObj: JsonObject;
+        Cat: Text;
+        CurNet: Decimal;
+        CurVat: Decimal;
+    begin
+        VATEntry.SetRange(Type, VATEntry.Type::Sale);
+        VATEntry.SetRange("Document No.", DocNo);
+        VATEntry.SetRange("Document Type", DocType);
+        VATEntry.SetRange("Posting Date", PostingDate);
+        if VATEntry.FindSet() then
+            repeat
+                Cat := JpkCategory(VATEntry."VAT Bus. Posting Group", VATEntry."VAT Prod. Posting Group");
+                if not NetByCat.ContainsKey(Cat) then begin
+                    NetByCat.Add(Cat, 0);
+                    VatByCat.Add(Cat, 0);
+                end;
+                NetByCat.Get(Cat, CurNet);
+                VatByCat.Get(Cat, CurVat);
+                NetByCat.Set(Cat, CurNet + Abs(VATEntry.Base));
+                VatByCat.Set(Cat, CurVat + Abs(VATEntry.Amount));
+            until VATEntry.Next() = 0;
+
+        foreach Cat in NetByCat.Keys() do begin
+            Clear(VatObj);
+            NetByCat.Get(Cat, CurNet);
+            VatByCat.Get(Cat, CurVat);
+            VatObj.Add('category', Cat);
+            VatObj.Add('netAmount', CurNet);
+            VatObj.Add('vatAmount', CurVat);
+            VatArray.Add(VatObj);
+        end;
+        SaleObj.Add('vat', VatArray);
     end;
 
     local procedure CalcInvNetAmount(DocNo: Code[20]): Decimal

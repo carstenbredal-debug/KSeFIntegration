@@ -30,9 +30,24 @@ public class SalesRecordData
     public string? PaymentDueDate { get; set; }
     public string? KSeFReferenceNumber { get; set; }
     public bool IsCreditMemo { get; set; }
+
+    // Per-category VAT breakdown of the document, supplied by BC (grouped by VAT Bus.
+    // Posting Group / VAT clause). Drives the JPK K_/P_ boxes. When empty, the builder
+    // falls back to a single component derived from NetAmount/VatAmount (back-compat).
+    public List<SalesVatBreakdown> Vat { get; set; } = new();
+
     public decimal NetAmount { get; set; }
     public decimal VatAmount { get; set; }
     public decimal GrossAmount { get; set; }
+}
+
+public class SalesVatBreakdown
+{
+    // STD = domestic rated (POLAND), ZW = exempt, OO = intra-EU reverse-charge (EU),
+    // NP = outside-scope / not-subject (NONEU).
+    public string Category { get; set; } = "STD";
+    public decimal NetAmount { get; set; }
+    public decimal VatAmount { get; set; }
 }
 
 public class JpkV7MResponse
