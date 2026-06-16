@@ -46,7 +46,19 @@ jobs:
 
           $url = Get-BCArtifactUrl -type sandbox -version '${{ env.BC_VERSION }}' -country '${{ env.BC_COUNTRY }}' -select Latest
           Write-Host "Artifact: $url"
-          $paths = Download-Artifacts -artifactUrl $url -includePlatform -force
+          # The BC platform artifact download is large and intermittently flaky on the runner.
+          # Retry the whole call a few times before failing the build.
+          $paths = $null
+          for ($attempt = 1; $attempt -le 5; $attempt++) {
+            try {
+              $paths = Download-Artifacts -artifactUrl $url -includePlatform -force
+              break
+            } catch {
+              Write-Host "Download attempt $attempt failed: $($_.Exception.Message)"
+              if ($attempt -eq 5) { throw }
+              Start-Sleep -Seconds (15 * $attempt)
+            }
+          }
           $appArtifact = $paths[0]
           $platformArtifact = $paths[1]
 
