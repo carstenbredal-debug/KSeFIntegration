@@ -11,7 +11,7 @@ on:
 
 env:
   AL_PROJECT: 'src/KSeF.BCExtension'
-  BC_VERSION: '28.2'
+  BC_VERSION: '28.1'
   BC_COUNTRY: 'w1'
   MS_SYMBOLS_FEED: 'https://dynamicssmb2.pkgs.visualstudio.com/DynamicsBCPublicFeeds/_packaging/MSSymbols/nuget/v3/index.json'
 
