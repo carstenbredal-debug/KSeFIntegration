@@ -2,6 +2,11 @@ table 50200 "KPHG KSeF Setup"
 {
     Caption = 'KSeF Setup';
     DataClassification = CustomerContent;
+    // Posting subscribers read (and auto-create) this setup on every sales post, running as the
+    // posting/integration user. Grant the access inherently so posting never depends on the user
+    // having the KSeF Admin permission set assigned (which breaks when the company is recreated).
+    InherentPermissions = RIMD;
+    InherentEntitlements = RIMD;
 
     fields
     {
