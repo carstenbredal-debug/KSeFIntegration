@@ -5,6 +5,9 @@ codeunit 50205 "KPHG KSeF Dispatch"
     // of submitting synchronously on posting. This decouples KSeF from BC posting so robot-volume posting
     // can't flood KSeF Test (rate limits / token exhaustion) or block the posting itself. Run by a
     // recurring Job Queue Entry (auto-created by EnsureDispatchJob from the Install/Upgrade seed).
+    // Job Queue runs this as a record-based codeunit (the Job Queue Entry is the record). Without TableNo
+    // the platform throws "No record is associated with the job queue entry." We ignore the passed Rec.
+    TableNo = "Job Queue Entry";
     Permissions =
         tabledata "Sales Invoice Header" = RIMD,
         tabledata "Sales Cr.Memo Header" = RIMD,
@@ -64,8 +67,13 @@ codeunit 50205 "KPHG KSeF Dispatch"
     begin
         JobQueueEntry.SetRange("Object Type to Run", JobQueueEntry."Object Type to Run"::Codeunit);
         JobQueueEntry.SetRange("Object ID to Run", Codeunit::"KPHG KSeF Dispatch");
-        if not JobQueueEntry.IsEmpty() then
+        if JobQueueEntry.FindFirst() then begin
+            // Already exists — make sure it's actually running (recover it from an Error / On-Hold state,
+            // e.g. after a code fix), by re-enqueuing it.
+            if JobQueueEntry.Status <> JobQueueEntry.Status::Ready then
+                Codeunit.Run(Codeunit::"Job Queue - Enqueue", JobQueueEntry);
             exit;
+        end;
 
         JobQueueEntry.Init();
         JobQueueEntry.ID := CreateGuid();
