@@ -36,6 +36,9 @@ table 50200 "KPHG KSeF Setup"
         field(50; "Default KSeF Required"; Boolean)
         {
             Caption = 'Default KSeF Required';
+            // Default to automatic so a reset that recreates this record (via GetSetup's Init) comes up
+            // KSeF-required, instead of reverting to manual. The Install codeunit seeds the same on install.
+            InitValue = true;
         }
     }
 
