@@ -119,8 +119,9 @@ codeunit 50205 "KPHG KSeF Dispatch"
 
     local procedure MaxPerRun(): Integer
     begin
-        // Small batch (no in-run sleep): ~10 HTTP submits finish in seconds, well within the 1-min job
-        // interval, so runs never overlap. Effective pace = 10/min, which KSeF Test tolerates.
-        exit(10);
+        // Batch per document type per run (so up to ~2x this in total). With per-doc isolation + commit,
+        // an occasional overlap or a killed long run is safe (each doc's result is already committed, the
+        // rest retry next run). 30 -> ~60 docs/min. Raise/lower to trade throughput vs KSeF rate limits.
+        exit(30);
     end;
 }
