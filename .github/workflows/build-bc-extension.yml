@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - dev
+      - test
+      - prod
     paths:
       - 'src/KSeF.BCExtension/**'
       - '.github/workflows/build-bc-extension.yml'
