@@ -12,6 +12,17 @@ page 50201 "KPHG KSeF Setup"
     {
         area(Content)
         {
+            cuegroup("KSeF Transfer")
+            {
+                Caption = 'KSeF Transfer';
+
+                field("Inv In KSeF"; Rec."Inv In KSeF") { ApplicationArea = All; ToolTip = 'Invoices accepted by KSeF.'; }
+                field("Inv Pending"; Rec."Inv Pending") { ApplicationArea = All; ToolTip = 'Invoices waiting to be sent / processing / sent, not yet accepted.'; }
+                field("Inv Failed"; Rec."Inv Failed") { ApplicationArea = All; ToolTip = 'Invoices rejected or errored.'; }
+                field("CrMemo In KSeF"; Rec."CrMemo In KSeF") { ApplicationArea = All; ToolTip = 'Credit memos accepted by KSeF.'; }
+                field("CrMemo Pending"; Rec."CrMemo Pending") { ApplicationArea = All; ToolTip = 'Credit memos waiting / processing / sent, not yet accepted.'; }
+                field("CrMemo Failed"; Rec."CrMemo Failed") { ApplicationArea = All; ToolTip = 'Credit memos rejected or errored.'; }
+            }
             group(General)
             {
                 Caption = 'General';

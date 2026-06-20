@@ -40,6 +40,50 @@ table 50200 "KPHG KSeF Setup"
             // KSeF-required, instead of reverting to manual. The Install codeunit seeds the same on install.
             InitValue = true;
         }
+
+        // ---- KSeF transfer overview (FlowField counts for the Setup cue tiles) ----
+        field(100; "Inv In KSeF"; Integer)
+        {
+            Caption = 'Invoices in KSeF';
+            FieldClass = FlowField;
+            Editable = false;
+            CalcFormula = count("Sales Invoice Header" where("KPHG KSeF Required" = const(true), "KPHG KSeF Status" = const(Accepted)));
+        }
+        field(101; "Inv Pending"; Integer)
+        {
+            Caption = 'Invoices pending';
+            FieldClass = FlowField;
+            Editable = false;
+            CalcFormula = count("Sales Invoice Header" where("KPHG KSeF Required" = const(true), "KPHG KSeF Status" = filter(Ready | Processing | Sent)));
+        }
+        field(102; "Inv Failed"; Integer)
+        {
+            Caption = 'Invoices failed';
+            FieldClass = FlowField;
+            Editable = false;
+            CalcFormula = count("Sales Invoice Header" where("KPHG KSeF Required" = const(true), "KPHG KSeF Status" = filter(Rejected | Error)));
+        }
+        field(110; "CrMemo In KSeF"; Integer)
+        {
+            Caption = 'Credit memos in KSeF';
+            FieldClass = FlowField;
+            Editable = false;
+            CalcFormula = count("Sales Cr.Memo Header" where("KPHG KSeF Required" = const(true), "KPHG KSeF Status" = const(Accepted)));
+        }
+        field(111; "CrMemo Pending"; Integer)
+        {
+            Caption = 'Credit memos pending';
+            FieldClass = FlowField;
+            Editable = false;
+            CalcFormula = count("Sales Cr.Memo Header" where("KPHG KSeF Required" = const(true), "KPHG KSeF Status" = filter(Ready | Processing | Sent)));
+        }
+        field(112; "CrMemo Failed"; Integer)
+        {
+            Caption = 'Credit memos failed';
+            FieldClass = FlowField;
+            Editable = false;
+            CalcFormula = count("Sales Cr.Memo Header" where("KPHG KSeF Required" = const(true), "KPHG KSeF Status" = filter(Rejected | Error)));
+        }
     }
 
     keys
