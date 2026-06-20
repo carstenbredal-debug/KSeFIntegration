@@ -20,15 +20,15 @@ codeunit 50205 "KPHG KSeF Dispatch"
 
     procedure DispatchReady()
     var
-        KSeFMgmt: Codeunit "KPHG KSeF Management";
         SalesInvHeader: Record "Sales Invoice Header";
         SalesCrMemoHeader: Record "Sales Cr.Memo Header";
         InvNos: List of [Code[20]];
         CrMemoNos: List of [Code[20]];
         DocNo: Code[20];
     begin
-        // Collect a bounded batch of Ready / retryable-Error documents FIRST. Don't submit inside the
-        // FindSet loop — AutoSend modifies + commits the record, which would disturb the cursor.
+        // Collect a SMALL bounded batch of Ready / retryable-Error documents FIRST, so each run finishes
+        // in seconds and never overlaps the next 1-minute run (overlapping runs were colliding on the same
+        // records -> "we just updated this page" errors and BC killing the long session).
         SalesInvHeader.SetRange("KPHG KSeF Required", true);
         SalesInvHeader.SetFilter("KPHG KSeF Status", '%1|%2',
             SalesInvHeader."KPHG KSeF Status"::Ready, SalesInvHeader."KPHG KSeF Status"::Error);
@@ -37,10 +37,12 @@ codeunit 50205 "KPHG KSeF Dispatch"
                 InvNos.Add(SalesInvHeader."No.");
             until (SalesInvHeader.Next() = 0) or (InvNos.Count() >= MaxPerRun());
 
+        // Submit each in isolation: a per-document failure (concurrency, KSeF reject) is CAUGHT so it can't
+        // abort the whole run; Commit after each persists its outcome and frees locks before the next.
         foreach DocNo in InvNos do
             if SalesInvHeader.Get(DocNo) then begin
-                KSeFMgmt.AutoSendInvoiceToKSeF(SalesInvHeader);
-                Sleep(PaceMs());
+                if TrySendInvoice(SalesInvHeader) then;
+                Commit();
             end;
 
         SalesCrMemoHeader.SetRange("KPHG KSeF Required", true);
@@ -53,9 +55,25 @@ codeunit 50205 "KPHG KSeF Dispatch"
 
         foreach DocNo in CrMemoNos do
             if SalesCrMemoHeader.Get(DocNo) then begin
-                KSeFMgmt.AutoSendCrMemoToKSeF(SalesCrMemoHeader);
-                Sleep(PaceMs());
+                if TrySendCrMemo(SalesCrMemoHeader) then;
+                Commit();
             end;
+    end;
+
+    [TryFunction]
+    local procedure TrySendInvoice(var SalesInvHeader: Record "Sales Invoice Header")
+    var
+        KSeFMgmt: Codeunit "KPHG KSeF Management";
+    begin
+        KSeFMgmt.AutoSendInvoiceToKSeF(SalesInvHeader);
+    end;
+
+    [TryFunction]
+    local procedure TrySendCrMemo(var SalesCrMemoHeader: Record "Sales Cr.Memo Header")
+    var
+        KSeFMgmt: Codeunit "KPHG KSeF Management";
+    begin
+        KSeFMgmt.AutoSendCrMemoToKSeF(SalesCrMemoHeader);
     end;
 
     // Create the recurring Job Queue Entry that runs this dispatcher, if one doesn't already exist.
@@ -101,11 +119,8 @@ codeunit 50205 "KPHG KSeF Dispatch"
 
     local procedure MaxPerRun(): Integer
     begin
-        exit(20); // bounded batch per run; effective rate = MaxPerRun / job interval
-    end;
-
-    local procedure PaceMs(): Integer
-    begin
-        exit(500); // delay between submissions to stay under KSeF rate limits
+        // Small batch (no in-run sleep): ~10 HTTP submits finish in seconds, well within the 1-min job
+        // interval, so runs never overlap. Effective pace = 10/min, which KSeF Test tolerates.
+        exit(10);
     end;
 }
