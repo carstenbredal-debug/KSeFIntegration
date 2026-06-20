@@ -290,14 +290,13 @@ public class InvoiceXmlBuilder
             // TypKorekty: 1=korekta wartościowa, 2=korekta ilościowa, 3=korekta danych
             fa.Add(new XElement(Ns + "TypKorekty", 1));
 
-            // DaneFaKorygowanej — reference to original invoice
+            // DaneFaKorygowanej — reference to the corrected invoice. The FA(3) XSD defines this as a strict
+            // SEQUENCE, so the children must be emitted in this exact order or KSeF rejects with
+            // "element 'NrKSeFN' ... invalid child element":
+            //   1) KSeF ref:  (NrKSeF=1 + NrKSeFFaKorygowanej)  |  NrKSeFN=1   ← must be FIRST
+            //   2) NrFaKorygowanej
+            //   3) DataWystFaKorygowanej
             var daneFaKorygowanej = new XElement(Ns + "DaneFaKorygowanej");
-            if (!string.IsNullOrWhiteSpace(inv.OriginalInvoiceDate?.ToString()))
-                daneFaKorygowanej.Add(new XElement(Ns + "DataWystFaKorygowanej", inv.OriginalInvoiceDate!.Value.ToString("yyyy-MM-dd")));
-            else
-                daneFaKorygowanej.Add(new XElement(Ns + "DataWystFaKorygowanej", inv.IssueDate.ToString("yyyy-MM-dd")));
-            if (!string.IsNullOrWhiteSpace(inv.OriginalInvoiceNumber))
-                daneFaKorygowanej.Add(new XElement(Ns + "NrFaKorygowanej", inv.OriginalInvoiceNumber));
             if (!string.IsNullOrWhiteSpace(inv.OriginalInvoiceKSeFNumber))
             {
                 daneFaKorygowanej.Add(new XElement(Ns + "NrKSeF", 1));
@@ -307,6 +306,12 @@ public class InvoiceXmlBuilder
             {
                 daneFaKorygowanej.Add(new XElement(Ns + "NrKSeFN", 1));
             }
+            if (!string.IsNullOrWhiteSpace(inv.OriginalInvoiceNumber))
+                daneFaKorygowanej.Add(new XElement(Ns + "NrFaKorygowanej", inv.OriginalInvoiceNumber));
+            if (!string.IsNullOrWhiteSpace(inv.OriginalInvoiceDate?.ToString()))
+                daneFaKorygowanej.Add(new XElement(Ns + "DataWystFaKorygowanej", inv.OriginalInvoiceDate!.Value.ToString("yyyy-MM-dd")));
+            else
+                daneFaKorygowanej.Add(new XElement(Ns + "DataWystFaKorygowanej", inv.IssueDate.ToString("yyyy-MM-dd")));
             fa.Add(daneFaKorygowanej);
             // P_15ZK is only for advance-invoice (zaliczkowe) corrections, which this
             // system does not issue, so it is intentionally omitted for value corrections.

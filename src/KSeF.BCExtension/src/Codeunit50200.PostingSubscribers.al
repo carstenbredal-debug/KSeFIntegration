@@ -78,21 +78,9 @@ codeunit 50200 "KPHG Posting Subscribers"
         SalesCrMemoLine.Modify();
     end;
 
-    [EventSubscriber(ObjectType::Codeunit, Codeunit::"Sales-Post", 'OnAfterPostSalesDoc', '', false, false)]
-    local procedure AutoSendToKSeFAfterPost(var SalesHeader: Record "Sales Header"; var GenJnlPostLine: Codeunit "Gen. Jnl.-Post Line"; SalesShptHdrNo: Code[20]; RetRcpHdrNo: Code[20]; SalesInvHdrNo: Code[20]; SalesCrMemoHdrNo: Code[20])
-    var
-        KSeFMgmt: Codeunit "KPHG KSeF Management";
-        SalesInvHeader: Record "Sales Invoice Header";
-        SalesCrMemoHeader: Record "Sales Cr.Memo Header";
-    begin
-        if SalesInvHdrNo <> '' then
-            if SalesInvHeader.Get(SalesInvHdrNo) then
-                if SalesInvHeader."KPHG KSeF Required" then
-                    KSeFMgmt.AutoSendInvoiceToKSeF(SalesInvHeader);
-
-        if SalesCrMemoHdrNo <> '' then
-            if SalesCrMemoHeader.Get(SalesCrMemoHdrNo) then
-                if SalesCrMemoHeader."KPHG KSeF Required" then
-                    KSeFMgmt.AutoSendCrMemoToKSeF(SalesCrMemoHeader);
-    end;
+    // NOTE: KSeF submission is intentionally NOT done inline on posting anymore. Submitting synchronously
+    // inside OnAfterPostSalesDoc made high-volume posting (auction robots) flood KSeF Test — rate limits /
+    // session-token exhaustion / timeouts — and blocked BC posting on each call. Posting now only marks the
+    // document KSeF "Ready" (CopyHeaderFields above); the paced "KPHG KSeF Dispatch" codeunit (run by a
+    // recurring Job Queue Entry) submits Ready documents in bounded batches at a KSeF-tolerable rate.
 }

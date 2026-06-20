@@ -67,6 +67,21 @@ page 50201 "KPHG KSeF Setup"
                     KSeFMgmt.TestConnection();
                 end;
             }
+            action("Activate KSeF Dispatch")
+            {
+                ApplicationArea = All;
+                Caption = 'Activate KSeF Dispatch Job';
+                Image = Job;
+                ToolTip = 'Create (if missing) the recurring Job Queue Entry that paces KSeF submission of Ready documents.';
+
+                trigger OnAction()
+                var
+                    Dispatch: Codeunit "KPHG KSeF Dispatch";
+                begin
+                    Dispatch.EnsureDispatchJob();
+                    Message('KSeF dispatch job is active.');
+                end;
+            }
         }
     }
 

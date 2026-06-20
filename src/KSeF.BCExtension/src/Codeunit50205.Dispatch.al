@@ -1,0 +1,103 @@
+codeunit 50205 "KPHG KSeF Dispatch"
+{
+    // Paced background dispatcher. Submits KSeF-required invoices / credit memos that are Ready (or in a
+    // retryable Error state) to KSeF — a BOUNDED batch per run, with a small delay between each — instead
+    // of submitting synchronously on posting. This decouples KSeF from BC posting so robot-volume posting
+    // can't flood KSeF Test (rate limits / token exhaustion) or block the posting itself. Run by a
+    // recurring Job Queue Entry (auto-created by EnsureDispatchJob from the Install/Upgrade seed).
+    Permissions =
+        tabledata "Sales Invoice Header" = RIMD,
+        tabledata "Sales Cr.Memo Header" = RIMD,
+        tabledata "KPHG KSeF Setup" = R;
+
+    trigger OnRun()
+    begin
+        DispatchReady();
+    end;
+
+    procedure DispatchReady()
+    var
+        KSeFMgmt: Codeunit "KPHG KSeF Management";
+        SalesInvHeader: Record "Sales Invoice Header";
+        SalesCrMemoHeader: Record "Sales Cr.Memo Header";
+        InvNos: List of [Code[20]];
+        CrMemoNos: List of [Code[20]];
+        DocNo: Code[20];
+    begin
+        // Collect a bounded batch of Ready / retryable-Error documents FIRST. Don't submit inside the
+        // FindSet loop — AutoSend modifies + commits the record, which would disturb the cursor.
+        SalesInvHeader.SetRange("KPHG KSeF Required", true);
+        SalesInvHeader.SetFilter("KPHG KSeF Status", '%1|%2',
+            SalesInvHeader."KPHG KSeF Status"::Ready, SalesInvHeader."KPHG KSeF Status"::Error);
+        if SalesInvHeader.FindSet() then
+            repeat
+                InvNos.Add(SalesInvHeader."No.");
+            until (SalesInvHeader.Next() = 0) or (InvNos.Count() >= MaxPerRun());
+
+        foreach DocNo in InvNos do
+            if SalesInvHeader.Get(DocNo) then begin
+                KSeFMgmt.AutoSendInvoiceToKSeF(SalesInvHeader);
+                Sleep(PaceMs());
+            end;
+
+        SalesCrMemoHeader.SetRange("KPHG KSeF Required", true);
+        SalesCrMemoHeader.SetFilter("KPHG KSeF Status", '%1|%2',
+            SalesCrMemoHeader."KPHG KSeF Status"::Ready, SalesCrMemoHeader."KPHG KSeF Status"::Error);
+        if SalesCrMemoHeader.FindSet() then
+            repeat
+                CrMemoNos.Add(SalesCrMemoHeader."No.");
+            until (SalesCrMemoHeader.Next() = 0) or (CrMemoNos.Count() >= MaxPerRun());
+
+        foreach DocNo in CrMemoNos do
+            if SalesCrMemoHeader.Get(DocNo) then begin
+                KSeFMgmt.AutoSendCrMemoToKSeF(SalesCrMemoHeader);
+                Sleep(PaceMs());
+            end;
+    end;
+
+    // Create the recurring Job Queue Entry that runs this dispatcher, if one doesn't already exist.
+    // Idempotent. Wrapped by TryEnsureDispatchJob for the install/upgrade seed so a job-queue hiccup
+    // never breaks app install.
+    procedure EnsureDispatchJob()
+    var
+        JobQueueEntry: Record "Job Queue Entry";
+    begin
+        JobQueueEntry.SetRange("Object Type to Run", JobQueueEntry."Object Type to Run"::Codeunit);
+        JobQueueEntry.SetRange("Object ID to Run", Codeunit::"KPHG KSeF Dispatch");
+        if not JobQueueEntry.IsEmpty() then
+            exit;
+
+        JobQueueEntry.Init();
+        JobQueueEntry.ID := CreateGuid();
+        JobQueueEntry."Object Type to Run" := JobQueueEntry."Object Type to Run"::Codeunit;
+        JobQueueEntry."Object ID to Run" := Codeunit::"KPHG KSeF Dispatch";
+        JobQueueEntry.Description := CopyStr('KSeF paced dispatch', 1, MaxStrLen(JobQueueEntry.Description));
+        JobQueueEntry."Recurring Job" := true;
+        JobQueueEntry."No. of Minutes between Runs" := 1;
+        JobQueueEntry."Run on Mondays" := true;
+        JobQueueEntry."Run on Tuesdays" := true;
+        JobQueueEntry."Run on Wednesdays" := true;
+        JobQueueEntry."Run on Thursdays" := true;
+        JobQueueEntry."Run on Fridays" := true;
+        JobQueueEntry."Run on Saturdays" := true;
+        JobQueueEntry."Run on Sundays" := true;
+        JobQueueEntry.Insert(true);
+        Codeunit.Run(Codeunit::"Job Queue - Enqueue", JobQueueEntry);
+    end;
+
+    [TryFunction]
+    procedure TryEnsureDispatchJob()
+    begin
+        EnsureDispatchJob();
+    end;
+
+    local procedure MaxPerRun(): Integer
+    begin
+        exit(20); // bounded batch per run; effective rate = MaxPerRun / job interval
+    end;
+
+    local procedure PaceMs(): Integer
+    begin
+        exit(500); // delay between submissions to stay under KSeF rate limits
+    end;
+}
