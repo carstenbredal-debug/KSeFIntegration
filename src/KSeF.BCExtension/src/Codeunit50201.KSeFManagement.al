@@ -121,8 +121,7 @@ codeunit 50201 "KPHG KSeF Management"
         if SalesInvHeader."KPHG KSeF Status" = SalesInvHeader."KPHG KSeF Status"::Accepted then
             exit;
 
-        if not Setup.Get() then
-            exit;
+        Setup.GetSetup();
         if Setup."Azure Function URL" = '' then
             exit;
 
@@ -205,8 +204,7 @@ codeunit 50201 "KPHG KSeF Management"
         if SalesCrMemoHeader."KPHG KSeF Status" = SalesCrMemoHeader."KPHG KSeF Status"::Accepted then
             exit;
 
-        if not Setup.Get() then
-            exit;
+        Setup.GetSetup();
         if Setup."Azure Function URL" = '' then
             exit;
 
