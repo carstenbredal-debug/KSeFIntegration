@@ -78,7 +78,7 @@ public class InvoiceXmlBuilder
                 new XElement(Ns + "Nazwa", seller.Name)
             ),
             new XElement(Ns + "Adres",
-                new XElement(Ns + "KodKraju", countryCode),
+                new XElement(Ns + "KodKraju", IsoCountry(countryCode)),
                 new XElement(Ns + "AdresL1", FormatAddress(seller.Street, seller.BuildingNumber, seller.ApartmentNumber)),
                 new XElement(Ns + "AdresL2", $"{seller.PostalCode} {seller.City}")
             )
@@ -92,6 +92,12 @@ public class InvoiceXmlBuilder
         "PT", "RO", "SK", "SI", "ES", "SE"
     };
 
+    // KSeF KodKraju (address country) requires the ISO 3166-1 alpha-2 code. Greece's EU VAT prefix is "EL"
+    // (which is what our data stores), but its ISO country code is "GR" — KSeF's TKodKraju rejects "EL".
+    // Map it for KodKraju only; KodUE (the VAT-prefix field) correctly keeps "EL".
+    private static string IsoCountry(string countryCode)
+        => string.Equals(countryCode, "EL", StringComparison.OrdinalIgnoreCase) ? "GR" : countryCode;
+
     private enum ZeroRateKind { Domestic, IntraEu, Export }
 
     // FA(3) zero-rate classification from the buyer's country: PL -> domestic (0 KR),
@@ -100,7 +106,7 @@ public class InvoiceXmlBuilder
     {
         var cc = string.IsNullOrWhiteSpace(buyer.CountryCode) ? "PL" : buyer.CountryCode.Trim().ToUpperInvariant();
         if (cc == "PL") return ZeroRateKind.Domestic;
-        return EuCountryCodes.Contains(cc) ? ZeroRateKind.IntraEu : ZeroRateKind.Export;
+        return EuCountryCodes.Contains(IsoCountry(cc)) ? ZeroRateKind.IntraEu : ZeroRateKind.Export;
     }
 
     // FA(3) tax categories. The line VAT% cannot distinguish these (0% / WDT / export /
@@ -147,7 +153,7 @@ public class InvoiceXmlBuilder
     {
         var countryCode = string.IsNullOrWhiteSpace(buyer.CountryCode) ? "PL" : buyer.CountryCode.Trim().ToUpperInvariant();
         var isPolish = countryCode == "PL";
-        var isEu = !isPolish && EuCountryCodes.Contains(countryCode);
+        var isEu = !isPolish && EuCountryCodes.Contains(IsoCountry(countryCode));
         var vatNumber = buyer.NIP?.Trim() ?? "";
 
         var identyfikacyjne = new XElement(Ns + "DaneIdentyfikacyjne");
@@ -175,7 +181,7 @@ public class InvoiceXmlBuilder
         return new XElement(Ns + "Podmiot2",
             identyfikacyjne,
             new XElement(Ns + "Adres",
-                new XElement(Ns + "KodKraju", countryCode),
+                new XElement(Ns + "KodKraju", IsoCountry(countryCode)),
                 new XElement(Ns + "AdresL1", FormatAddress(buyer.Street, buyer.BuildingNumber, buyer.ApartmentNumber)),
                 new XElement(Ns + "AdresL2", $"{buyer.PostalCode} {buyer.City}")
             ),
